@@ -26,6 +26,9 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.106.1
         version: 5.106.1(@types/react@19.3.0)(react@19.3.0)
+      '@wagmi/core':
+        specifier: ^3.6.9
+        version: 3.6.9(@tanstack/query-core@5.106.1)(@types/react@19.3.0)(react@19.3.0)(typescript@5.9.3)(use-sync-external-store@1.4.0(react@19.3.0))(viem@2.57.16(typescript@5.9.3)(zod@4.6.7))
       next:
         specifier: 16.4.5
         version: 16.4.5(@babel/core@7.29.13)(@types/node@20.19.43)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)

@@ -1,0 +1,349 @@
+"use client";
+
+import { waitForTransactionReceipt } from "@wagmi/core";
+import Link from "next/link";
+import { useState, type FormEvent } from "react";
+import {
+  BaseError,
+  InsufficientFundsError,
+  parseEventLogs,
+  UserRejectedRequestError,
+  type Hash,
+} from "viem";
+import { useConfig, useWriteContract } from "wagmi";
+import { WalletGate } from "@/components/wallet-gate";
+import { whitechainSepolia } from "@/lib/chains";
+import { invoiceRegistryAbi, REGISTRY_ADDRESS } from "@/lib/contracts";
+import {
+  dueDateToUnix,
+  hashInvoiceDetails,
+  newSalt,
+  parseUsdtAmount,
+} from "@/lib/invoice";
+
+const EMPTY_FORM = {
+  customerName: "",
+  customerEmail: "",
+  memo: "",
+  amount: "",
+  dueDate: "",
+};
+
+type Stage = "editing" | "wallet" | "confirming";
+
+function explorerTx(hash: Hash) {
+  return `${whitechainSepolia.blockExplorers.default.url}/tx/${hash}`;
+}
+
+function writeErrorMessage(error: unknown) {
+  if (error instanceof BaseError) {
+    if (error.walk((cause) => cause instanceof UserRejectedRequestError) instanceof UserRejectedRequestError) {
+      return "You cancelled in your wallet. Nothing was created.";
+    }
+    if (error.walk((cause) => cause instanceof InsufficientFundsError) instanceof InsufficientFundsError) {
+      return "This wallet doesn't have enough WBT for gas.";
+    }
+  }
+  return "The invoice wasn't created. Check your wallet and try again.";
+}
+
+function displayAmount(text: string) {
+  const amount = parseUsdtAmount(text);
+  if (amount === null) return "0.00";
+  return (Number(amount) / 1e6).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 6,
+  });
+}
+
+function displayDate(date: string) {
+  if (!date) return "—";
+  return new Date(`${date}T00:00:00`).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function CreatedPanel({
+  id,
+  hash,
+  onReset,
+}: {
+  id: bigint;
+  hash: Hash;
+  onReset: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const payUrl = `${window.location.origin}/pay/${id}`;
+
+  async function copyLink() {
+    await navigator.clipboard.writeText(payUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  return (
+    <section className="card flex flex-col gap-4 p-6" role="status">
+      <div className="flex items-center justify-between gap-4">
+        <h2 className="display text-xl">
+          Invoice <span className="figure">#{String(id)}</span> created
+        </h2>
+        <span className="pill">Open</span>
+      </div>
+      <div className="well flex flex-wrap items-center justify-between gap-3">
+        <span className="figure text-[13px]/[18px] break-all">{payUrl}</span>
+        <button type="button" className="btn" onClick={copyLink}>
+          {copied ? "Link copied" : "Copy pay link"}
+        </button>
+      </div>
+      <a
+        href={explorerTx(hash)}
+        target="_blank"
+        rel="noreferrer"
+        className="text-[13px]/[18px] text-accent-text"
+      >
+        View on explorer ↗
+      </a>
+      <div className="flex flex-wrap justify-end gap-2">
+        <button type="button" className="btn" onClick={onReset}>
+          Create another
+        </button>
+        <Link href="/dashboard" className="btn btn-primary">
+          Back to invoices
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+export function NewInvoiceForm() {
+  const config = useConfig();
+  const write = useWriteContract();
+
+  const [form, setForm] = useState(EMPTY_FORM);
+  const [stage, setStage] = useState<Stage>("editing");
+  const [amountError, setAmountError] = useState<string>();
+  const [dateError, setDateError] = useState<string>();
+  const [submitError, setSubmitError] = useState<string>();
+  const [sentHash, setSentHash] = useState<Hash>();
+  const [created, setCreated] = useState<{ id: bigint; hash: Hash }>();
+
+  const busy = stage !== "editing";
+
+  function update(field: keyof typeof EMPTY_FORM, value: string) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function reset() {
+    setForm(EMPTY_FORM);
+    setSentHash(undefined);
+    setSubmitError(undefined);
+    setCreated(undefined);
+  }
+
+  async function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    if (busy) return;
+
+    const amount = parseUsdtAmount(form.amount);
+    const dueAt = dueDateToUnix(form.dueDate);
+    setAmountError(
+      amount === null ? "Enter an amount above 0, with up to 6 decimals." : undefined,
+    );
+    setDateError(dueAt === null ? "Choose today or a later date." : undefined);
+    setSubmitError(undefined);
+    setSentHash(undefined);
+    if (amount === null || dueAt === null) return;
+
+    const { customerName, customerEmail, memo } = form;
+    const ref = hashInvoiceDetails({ customerName, customerEmail, memo }, newSalt());
+
+    let hash: Hash;
+    setStage("wallet");
+    try {
+      hash = await write.mutateAsync({
+        address: REGISTRY_ADDRESS,
+        abi: invoiceRegistryAbi,
+        functionName: "create",
+        args: [amount, dueAt, ref],
+        chainId: whitechainSepolia.id,
+      });
+    } catch (error) {
+      setSubmitError(writeErrorMessage(error));
+      setStage("editing");
+      return;
+    }
+
+    setSentHash(hash);
+    setStage("confirming");
+    try {
+      const receipt = await waitForTransactionReceipt(config, {
+        hash,
+        chainId: whitechainSepolia.id,
+      });
+      const [log] = parseEventLogs({
+        abi: invoiceRegistryAbi,
+        eventName: "InvoiceCreated",
+        logs: receipt.logs,
+      });
+      if (receipt.status !== "success" || !log) {
+        setSubmitError("The transaction failed, so no invoice was created.");
+      } else {
+        setCreated({ id: log.args.id, hash });
+      }
+    } catch {
+      // The transaction was sent, so asking to retry could create a duplicate.
+      setSubmitError(
+        "We sent the transaction but couldn't confirm it. Check it on the explorer before trying again.",
+      );
+    }
+    setStage("editing");
+  }
+
+  return (
+    <WalletGate>
+      <div className="grid items-start gap-6 lg:grid-cols-[7fr_5fr]">
+        {created ? (
+          <CreatedPanel id={created.id} hash={created.hash} onReset={reset} />
+        ) : (
+          <form className="card flex flex-col gap-5 p-6" onSubmit={onSubmit} noValidate>
+            <fieldset disabled={busy} className="flex flex-col gap-5">
+              <legend className="sr-only">Invoice details</legend>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="field">
+                  Customer
+                  <input
+                    className="input"
+                    type="text"
+                    autoComplete="off"
+                    value={form.customerName}
+                    onChange={(event) => update("customerName", event.target.value)}
+                  />
+                </label>
+                <label className="field">
+                  Customer email
+                  <input
+                    className="input"
+                    type="email"
+                    autoComplete="off"
+                    value={form.customerEmail}
+                    onChange={(event) => update("customerEmail", event.target.value)}
+                  />
+                </label>
+              </div>
+              <label className="field">
+                What is this for?
+                <input
+                  className="input"
+                  type="text"
+                  autoComplete="off"
+                  value={form.memo}
+                  onChange={(event) => update("memo", event.target.value)}
+                />
+              </label>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="field">
+                  Amount
+                  <span className="relative block">
+                    <input
+                      className="input figure pr-18 text-xl"
+                      type="text"
+                      inputMode="decimal"
+                      autoComplete="off"
+                      placeholder="0.00"
+                      aria-invalid={amountError ? true : undefined}
+                      value={form.amount}
+                      onChange={(event) => update("amount", event.target.value)}
+                    />
+                    <span className="figure absolute right-3.5 top-3.5 text-muted">USDT</span>
+                  </span>
+                  {amountError && (
+                    <span role="alert" className="text-[13px]/[18px] font-normal text-late">
+                      {amountError}
+                    </span>
+                  )}
+                </label>
+                <label className="field">
+                  Due date
+                  <input
+                    className="input"
+                    type="date"
+                    aria-invalid={dateError ? true : undefined}
+                    value={form.dueDate}
+                    onChange={(event) => update("dueDate", event.target.value)}
+                  />
+                  {dateError && (
+                    <span role="alert" className="text-[13px]/[18px] font-normal text-late">
+                      {dateError}
+                    </span>
+                  )}
+                </label>
+              </div>
+            </fieldset>
+            <div className="well flex items-baseline justify-between gap-4 text-[13px]/[18px]">
+              <span className="text-muted">Creating this invoice costs you</span>
+              <span className="figure">about 0.0006 WBT</span>
+            </div>
+            {submitError && (
+              <p role="alert" className="text-[13px]/[18px] text-late">
+                {submitError}{" "}
+                {sentHash && (
+                  <a
+                    className="underline"
+                    href={explorerTx(sentHash)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    View transaction ↗
+                  </a>
+                )}
+              </p>
+            )}
+            <div className="flex justify-end gap-2">
+              <Link href="/dashboard" className="btn">
+                Cancel
+              </Link>
+              <button type="submit" className="btn btn-primary min-w-[200px]" disabled={busy}>
+                {stage === "wallet" && "Confirm in your wallet"}
+                {stage === "confirming" && "Creating invoice…"}
+                {stage === "editing" && "Create invoice"}
+              </button>
+            </div>
+          </form>
+        )}
+
+        <aside aria-label="What your customer sees" className="flex flex-col gap-2.5">
+          <div className="label">What your customer sees</div>
+          <div data-theme="light" className="theme-root rounded-[14px] p-6">
+            <div className="card flex flex-col gap-4 p-6">
+              <div className="display text-lg">Your business</div>
+              <div>
+                <div className="text-[13px]/[18px] text-muted">
+                  {form.memo || "What this invoice is for"}
+                </div>
+                <div className="figure mt-1 text-4xl/11 break-all">
+                  {displayAmount(form.amount)} <span className="text-base text-muted">USDT</span>
+                </div>
+              </div>
+              <div className="flex justify-between gap-4 text-[13px]/[18px]">
+                <span className="text-muted">Billed to</span>
+                <span>{form.customerName || "—"}</span>
+              </div>
+              <div className="flex justify-between gap-4 text-[13px]/[18px]">
+                <span className="text-muted">Due</span>
+                <span>{displayDate(form.dueDate)}</span>
+              </div>
+              <div className="btn btn-primary btn-wide cursor-default">
+                Pay {displayAmount(form.amount)} USDT
+              </div>
+              <div className="text-center text-[13px]/[18px] text-muted">
+                No wallet needed. No network fees.
+              </div>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </WalletGate>
+  );
+}
