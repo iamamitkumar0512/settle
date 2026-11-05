@@ -17,5 +17,8 @@ export const whitechainSepolia = defineChain({
       url: "https://explorer.testnet.whitechain.io",
     },
   },
+  contracts: {
+    multicall3: { address: "0xcA11bde05977b3631167028862bE2a173976CA11" },
+  },
   testnet: true,
 });

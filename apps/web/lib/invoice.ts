@@ -1,4 +1,11 @@
-import { bytesToHex, keccak256, parseUnits, stringToHex, type Hex } from "viem";
+import {
+  bytesToHex,
+  keccak256,
+  parseUnits,
+  stringToHex,
+  type Address,
+  type Hex,
+} from "viem";
 import { USDT_DECIMALS } from "./contracts";
 
 export type InvoiceDetails = {
@@ -32,4 +39,51 @@ export function hashInvoiceDetails(details: InvoiceDetails, salt: Hex): Hex {
   return keccak256(
     stringToHex(JSON.stringify({ customerName, customerEmail, memo, salt })),
   );
+}
+
+export const InvoiceStatus = {
+  Open: 0,
+  Paid: 1,
+  Refunded: 2,
+  Cancelled: 3,
+} as const;
+
+export type Invoice = {
+  id: bigint;
+  merchant: Address;
+  payer: Address;
+  amount: bigint;
+  refunded: bigint;
+  dueAt: bigint;
+  paidAt: bigint;
+  status: number;
+};
+
+export type InvoiceState = {
+  label: string;
+  group: "Open" | "Paid" | "Refunded" | "Cancelled";
+  tone: string;
+  isOverdue: boolean;
+};
+
+const DUE_SOON_SECONDS = 3n * 24n * 60n * 60n;
+
+export function invoiceState(invoice: Invoice, now: bigint): InvoiceState {
+  if (invoice.status === InvoiceStatus.Cancelled) {
+    return { label: "Cancelled", group: "Cancelled", tone: "", isOverdue: false };
+  }
+  if (invoice.status === InvoiceStatus.Paid) {
+    return { label: "Paid", group: "Paid", tone: "tone-paid", isOverdue: false };
+  }
+  if (invoice.status === InvoiceStatus.Refunded) {
+    const label = invoice.refunded < invoice.amount ? "Partly refunded" : "Refunded";
+    return { label, group: "Refunded", tone: "tone-refund", isOverdue: false };
+  }
+  if (invoice.dueAt < now) {
+    return { label: "Overdue", group: "Open", tone: "tone-late", isOverdue: true };
+  }
+  if (invoice.dueAt - now < DUE_SOON_SECONDS) {
+    return { label: "Due soon", group: "Open", tone: "tone-due", isOverdue: false };
+  }
+  return { label: "Open", group: "Open", tone: "", isOverdue: false };
 }

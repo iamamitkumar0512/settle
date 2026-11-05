@@ -14,6 +14,7 @@ import { useConfig, useWriteContract } from "wagmi";
 import { WalletGate } from "@/components/wallet-gate";
 import { whitechainSepolia } from "@/lib/chains";
 import { invoiceRegistryAbi, REGISTRY_ADDRESS } from "@/lib/contracts";
+import { formatDate, formatUsdt } from "@/lib/format";
 import {
   dueDateToUnix,
   hashInvoiceDetails,
@@ -48,21 +49,11 @@ function writeErrorMessage(error: unknown) {
 }
 
 function displayAmount(text: string) {
-  const amount = parseUsdtAmount(text);
-  if (amount === null) return "0.00";
-  return (Number(amount) / 1e6).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 6,
-  });
+  return formatUsdt(parseUsdtAmount(text) ?? 0n);
 }
 
 function displayDate(date: string) {
-  if (!date) return "—";
-  return new Date(`${date}T00:00:00`).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  return date ? formatDate(new Date(`${date}T00:00:00`)) : "—";
 }
 
 function CreatedPanel({

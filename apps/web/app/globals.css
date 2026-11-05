@@ -170,6 +170,54 @@ body {
     background: var(--sunken);
   }
 
+  .data-table {
+    width: 100%;
+    min-width: 720px;
+    border-collapse: collapse;
+  }
+
+  .data-table th {
+    padding: 10px 20px;
+    background: var(--sunken);
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .data-table td {
+    padding: 14px 20px;
+    border-top: 1px solid var(--line);
+    vertical-align: middle;
+  }
+
+  .data-table .text-right {
+    text-align: right;
+  }
+
+  .segmented {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--sunken);
+  }
+
+  .segmented button {
+    min-height: 38px;
+    padding: 0 14px;
+    border-radius: 7px;
+    color: var(--muted);
+    font-size: 14px;
+    line-height: 20px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .segmented button[aria-pressed="true"] {
+    background: var(--raised);
+    color: var(--ink);
+  }
+
   .pill {
     display: inline-flex;
     align-items: center;
