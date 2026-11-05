@@ -16,7 +16,7 @@ tab_width = 4
 bracket_spacing = true
 
 [rpc_endpoints]
-whitechain_sepolia = "${RPC_URL}"
+whitechain_sepolia = "${RPC_ENDPOINT}"
 
 [etherscan]
 whitechain_sepolia = { key = "", url = "https://explorer.testnet.whitechain.io/api", chain = 1874 }
