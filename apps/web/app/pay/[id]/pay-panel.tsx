@@ -1,14 +1,16 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import Link from "next/link";
 import { useState } from "react";
 import { zeroAddress, type Hash } from "viem";
 import { useConnection, usePublicClient, useReadContract, useWriteContract } from "wagmi";
+import { Message } from "@/components/message";
 import { WalletButton } from "@/components/wallet-button";
 import { whitechainSepolia } from "@/lib/chains";
 import { registry, usdtAbi, USDT_ADDRESS } from "@/lib/contracts";
 import { explorerTxUrl, formatDate, formatUsdt, shortAddress } from "@/lib/format";
-import { InvoiceStatus, toInvoice, type Invoice } from "@/lib/invoice";
+import { InvoiceStatus, type Invoice } from "@/lib/invoice";
+import { useInvoice } from "@/lib/use-invoice";
 import { isInsufficientGas, isUserRejection, revertName } from "@/lib/wallet-errors";
 
 const REFRESH_MS = 15_000;
@@ -20,10 +22,6 @@ const usdt = {
 } as const;
 
 type Stage = "idle" | "approving" | "approveConfirming" | "paying" | "payConfirming";
-
-function parseInvoiceId(value: unknown) {
-  return typeof value === "string" && /^[1-9]\d{0,18}$/.test(value) ? BigInt(value) : null;
-}
 
 function Shell({ children, aside }: { children: React.ReactNode; aside: React.ReactNode }) {
   return (
@@ -37,15 +35,6 @@ function Shell({ children, aside }: { children: React.ReactNode; aside: React.Re
       >
         {children}
       </section>
-    </main>
-  );
-}
-
-function Message({ title, text }: { title: string; text: string }) {
-  return (
-    <main className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center gap-2 px-4 text-center">
-      <h1 className="display text-2xl">{title}</h1>
-      <p className="text-muted">{text}</p>
     </main>
   );
 }
@@ -76,7 +65,7 @@ function InvoiceSummary({ invoice }: { invoice: Invoice }) {
   );
 }
 
-function PaidCard({ invoice, hash }: { invoice: Invoice; hash?: Hash }) {
+function PaidCard({ invoice }: { invoice: Invoice }) {
   return (
     <div className="flex flex-col items-center gap-3 text-center" role="status">
       <svg width="52" height="52" viewBox="0 0 52 52" aria-hidden="true">
@@ -98,27 +87,18 @@ function PaidCard({ invoice, hash }: { invoice: Invoice; hash?: Hash }) {
       {invoice.refunded > 0n && (
         <p className="text-refund">{formatUsdt(invoice.refunded)} USDT refunded.</p>
       )}
-      {hash && (
-        <a
-          href={explorerTxUrl(hash)}
-          target="_blank"
-          rel="noreferrer"
-          className="text-[13px]/[18px] text-accent-text"
-        >
-          View payment record ↗
-        </a>
-      )}
+      <Link href={`/pay/${invoice.id}/receipt`} className="btn btn-primary btn-wide">
+        View receipt
+      </Link>
     </div>
   );
 }
 
 function PayFlow({
   invoice,
-  onPaid,
   onChanged,
 }: {
   invoice: Invoice;
-  onPaid: (hash: Hash) => Promise<void>;
   onChanged: () => Promise<unknown>;
 }) {
   const client = usePublicClient({ chainId: whitechainSepolia.id });
@@ -218,7 +198,7 @@ function PayFlow({
     setStage("payConfirming");
     try {
       if (await confirm(hash)) {
-        await onPaid(hash);
+        await onChanged();
       } else {
         setError("The payment failed. No money moved.");
         await onChanged();
@@ -297,36 +277,22 @@ function PayFlow({
 }
 
 export function PayPanel() {
-  const params = useParams();
-  const id = parseInvoiceId(params.id);
+  const { id, invoice, state, refetch } = useInvoice();
   const { chainId, status } = useConnection();
-  const [paidHash, setPaidHash] = useState<Hash>();
 
-  const read = useReadContract({
-    ...registry,
-    functionName: "invoices",
-    args: [id ?? 0n],
-    query: { enabled: id !== null, refetchInterval: REFRESH_MS },
-  });
-
-  if (id === null) {
+  if (state === "notFound") {
     return <Message title="Invoice not found" text="Check the link and try again." />;
   }
-  if (read.data === undefined) {
-    if (read.isError) {
-      return (
-        <Message
-          title="Couldn't load this invoice"
-          text="Whitechain didn't respond. Refresh the page to try again."
-        />
-      );
-    }
+  if (state === "error") {
+    return (
+      <Message
+        title="Couldn't load this invoice"
+        text="Whitechain didn't respond. Refresh the page to try again."
+      />
+    );
+  }
+  if (!invoice || id === null) {
     return <Message title="Loading invoice…" text="" />;
-  }
-
-  const invoice = toInvoice(id, read.data);
-  if (invoice.merchant === zeroAddress) {
-    return <Message title="Invoice not found" text="Check the link and try again." />;
   }
   if (invoice.status === InvoiceStatus.Cancelled) {
     return (
@@ -342,7 +308,7 @@ export function PayPanel() {
   if (invoice.status !== InvoiceStatus.Open) {
     return (
       <Shell aside={summary}>
-        <PaidCard invoice={invoice} hash={paidHash} />
+        <PaidCard invoice={invoice} />
       </Shell>
     );
   }
@@ -356,14 +322,7 @@ export function PayPanel() {
           <div className="flex justify-end">
             <WalletButton />
           </div>
-          <PayFlow
-            invoice={invoice}
-            onPaid={async (hash) => {
-              setPaidHash(hash);
-              await read.refetch();
-            }}
-            onChanged={read.refetch}
-          />
+          <PayFlow invoice={invoice} onChanged={refetch} />
         </>
       ) : (
         <div className="flex flex-col items-center gap-3 text-center">

@@ -124,6 +124,11 @@ function InvoiceRow({ invoice, state }: { invoice: Invoice; state: InvoiceState 
       </td>
       <td className="text-right">
         {state.group === "Open" && <CopyLinkButton id={invoice.id} />}
+        {isPaid && (
+          <Link href={`/pay/${invoice.id}/receipt`} className="btn min-h-[38px]">
+            Receipt
+          </Link>
+        )}
       </td>
     </tr>
   );
