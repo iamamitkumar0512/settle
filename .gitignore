@@ -18,6 +18,7 @@ contracts/broadcast/
 .agents/
 .claude/
 skills-lock.json
+.mcp.json
 
 # node
 node_modules/
