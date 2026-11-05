@@ -10,7 +10,7 @@ export function ChainStatus() {
     functionName: "nextId",
   });
 
-  if (isPending) return <p>Connecting to Whitechain…</p>;
-  if (isError) return <p>Could not reach Whitechain.</p>;
-  return <p>Invoices created on Whitechain Sepolia: {String(nextId - 1n)}</p>;
+  if (isPending) return <p className="text-muted">Connecting to Whitechain…</p>;
+  if (isError) return <p className="text-muted">Could not reach Whitechain.</p>;
+  return <p className="text-muted">Invoices created on Whitechain Sepolia: <span className="figure">{String(nextId - 1n)}</span></p>;
 }

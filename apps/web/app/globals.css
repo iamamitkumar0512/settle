@@ -1,26 +1,173 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+:root,
+[data-theme="dark"] {
+  --bg: #0b0d12;
+  --raised: #13161d;
+  --sunken: #08090d;
+  --line: #262b36;
+  --line-strong: #5b6577;
+  --ink: #f2f4f7;
+  --muted: #9ba5b4;
+  --accent: #c8f04d;
+  --accent-ink: #161c04;
+  --accent-text: #c8f04d;
+  --paid: #5fe39b;
+  --due: #f5bc57;
+  --late: #ff8f73;
+  --refund: #a3b3ff;
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --bg: #f6f6f1;
+  --raised: #ffffff;
+  --sunken: #efefe8;
+  --line: #deded5;
+  --line-strong: #7b7f73;
+  --ink: #13150f;
+  --muted: #565b50;
+  --accent: #c8f04d;
+  --accent-ink: #161c04;
+  --accent-text: #4c6300;
+  --paid: #0f7a47;
+  --due: #8f5b00;
+  --late: #bf3b1e;
+  --refund: #3d4fc4;
+  color-scheme: light;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-bg: var(--bg);
+  --color-raised: var(--raised);
+  --color-sunken: var(--sunken);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-text: var(--accent-text);
+  --color-paid: var(--paid);
+  --color-due: var(--due);
+  --color-late: var(--late);
+  --color-refund: var(--refund);
+  --font-sans: var(--font-geist);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-display: var(--font-space-grotesk);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 22px;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+
+@layer components {
+  .theme-root {
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  .display {
+    font-family: var(--font-display), sans-serif;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  .figure {
+    font-family: var(--font-mono), ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+  }
+
+  .label {
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .card {
+    background: var(--raised);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 16px;
+    border: 1px solid var(--line-strong);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--ink);
+    font-size: 14px;
+    line-height: 20px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .btn-primary {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    padding: 0 9px;
+    border-radius: 999px;
+    color: var(--tone, var(--muted));
+    background: color-mix(in srgb, var(--tone, var(--muted)) 14%, transparent);
+    font-size: 12px;
+    line-height: 16px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .pill::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  .tone-paid {
+    --tone: var(--paid);
+  }
+
+  .tone-due {
+    --tone: var(--due);
+  }
+
+  .tone-late {
+    --tone: var(--late);
+  }
+
+  .tone-refund {
+    --tone: var(--refund);
+  }
 }
