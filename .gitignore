@@ -12,6 +12,9 @@ contracts/.env
 contracts/out/
 contracts/cache/
 contracts/broadcast/
+.agents/
+.claude/
+skills-lock.json
 
 # node
 node_modules/
