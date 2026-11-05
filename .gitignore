@@ -1,0 +1,21 @@
+# local-only planning + tooling (not part of the public repo)
+CLAUDE.md
+SETTLE_BUILD_PLAN.md
+
+# secrets — never commit
+.env
+.env.local
+.env.*.local
+contracts/.env
+
+# foundry build artifacts
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+
+# node
+node_modules/
+
+# misc
+.DS_Store
+*.log
