@@ -1,4 +1,5 @@
-import { formatUnits, type Address } from "viem";
+import { formatUnits, type Address, type Hash } from "viem";
+import { whitechainSepolia } from "./chains";
 import { USDT_DECIMALS } from "./contracts";
 
 export function shortAddress(address: Address) {
@@ -8,6 +9,10 @@ export function shortAddress(address: Address) {
 export function formatUsdt(amount: bigint) {
   const [whole, fraction = ""] = formatUnits(amount, USDT_DECIMALS).split(".");
   return `${BigInt(whole).toLocaleString("en-US")}.${fraction.padEnd(2, "0")}`;
+}
+
+export function explorerTxUrl(hash: Hash) {
+  return `${whitechainSepolia.blockExplorers.default.url}/tx/${hash}`;
 }
 
 export function formatDate(date: Date) {

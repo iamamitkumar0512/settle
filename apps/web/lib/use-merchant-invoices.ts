@@ -2,17 +2,10 @@
 
 import type { Address } from "viem";
 import { useReadContract, useReadContracts } from "wagmi";
-import { whitechainSepolia } from "./chains";
-import { invoiceRegistryAbi, REGISTRY_ADDRESS } from "./contracts";
-import type { Invoice } from "./invoice";
+import { registry } from "./contracts";
+import { toInvoice, type Invoice } from "./invoice";
 
 const REFRESH_MS = 15_000;
-
-const registry = {
-  address: REGISTRY_ADDRESS,
-  abi: invoiceRegistryAbi,
-  chainId: whitechainSepolia.id,
-} as const;
 
 // Reads every invoice in one multicall and keeps this merchant's. Current state comes straight from
 // the contract, so this needs no event scan, whose block range Ankr limits.
@@ -35,19 +28,7 @@ export function useMerchantInvoices(merchant: Address | undefined) {
   });
 
   const invoices: Invoice[] = (reads.data ?? [])
-    .map((row, index) => {
-      const [invoiceMerchant, payer, amount, refunded, dueAt, paidAt, status] = row;
-      return {
-        id: ids[index],
-        merchant: invoiceMerchant,
-        payer,
-        amount,
-        refunded,
-        dueAt,
-        paidAt,
-        status,
-      };
-    })
+    .map((row, index) => toInvoice(ids[index], row))
     .filter((invoice) => invoice.merchant.toLowerCase() === merchant?.toLowerCase())
     .reverse();
 

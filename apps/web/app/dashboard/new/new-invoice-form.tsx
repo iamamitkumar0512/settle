@@ -1,26 +1,20 @@
 "use client";
 
-import { waitForTransactionReceipt } from "@wagmi/core";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
-import {
-  BaseError,
-  InsufficientFundsError,
-  parseEventLogs,
-  UserRejectedRequestError,
-  type Hash,
-} from "viem";
-import { useConfig, useWriteContract } from "wagmi";
+import { parseEventLogs, type Hash } from "viem";
+import { usePublicClient, useWriteContract } from "wagmi";
 import { WalletGate } from "@/components/wallet-gate";
 import { whitechainSepolia } from "@/lib/chains";
 import { invoiceRegistryAbi, REGISTRY_ADDRESS } from "@/lib/contracts";
-import { formatDate, formatUsdt } from "@/lib/format";
+import { explorerTxUrl, formatDate, formatUsdt } from "@/lib/format";
 import {
   dueDateToUnix,
   hashInvoiceDetails,
   newSalt,
   parseUsdtAmount,
 } from "@/lib/invoice";
+import { isInsufficientGas, isUserRejection } from "@/lib/wallet-errors";
 
 const EMPTY_FORM = {
   customerName: "",
@@ -31,22 +25,6 @@ const EMPTY_FORM = {
 };
 
 type Stage = "editing" | "wallet" | "confirming";
-
-function explorerTx(hash: Hash) {
-  return `${whitechainSepolia.blockExplorers.default.url}/tx/${hash}`;
-}
-
-function writeErrorMessage(error: unknown) {
-  if (error instanceof BaseError) {
-    if (error.walk((cause) => cause instanceof UserRejectedRequestError) instanceof UserRejectedRequestError) {
-      return "You cancelled in your wallet. Nothing was created.";
-    }
-    if (error.walk((cause) => cause instanceof InsufficientFundsError) instanceof InsufficientFundsError) {
-      return "This wallet doesn't have enough WBT for gas.";
-    }
-  }
-  return "The invoice wasn't created. Check your wallet and try again.";
-}
 
 function displayAmount(text: string) {
   return formatUsdt(parseUsdtAmount(text) ?? 0n);
@@ -89,7 +67,7 @@ function CreatedPanel({
         </button>
       </div>
       <a
-        href={explorerTx(hash)}
+        href={explorerTxUrl(hash)}
         target="_blank"
         rel="noreferrer"
         className="text-[13px]/[18px] text-accent-text"
@@ -109,7 +87,7 @@ function CreatedPanel({
 }
 
 export function NewInvoiceForm() {
-  const config = useConfig();
+  const client = usePublicClient({ chainId: whitechainSepolia.id });
   const write = useWriteContract();
 
   const [form, setForm] = useState(EMPTY_FORM);
@@ -161,7 +139,13 @@ export function NewInvoiceForm() {
         chainId: whitechainSepolia.id,
       });
     } catch (error) {
-      setSubmitError(writeErrorMessage(error));
+      if (isUserRejection(error)) {
+        setSubmitError("You cancelled in your wallet. Nothing was created.");
+      } else if (isInsufficientGas(error)) {
+        setSubmitError("This wallet doesn't have enough WBT for gas.");
+      } else {
+        setSubmitError("The invoice wasn't created. Check your wallet and try again.");
+      }
       setStage("editing");
       return;
     }
@@ -169,10 +153,7 @@ export function NewInvoiceForm() {
     setSentHash(hash);
     setStage("confirming");
     try {
-      const receipt = await waitForTransactionReceipt(config, {
-        hash,
-        chainId: whitechainSepolia.id,
-      });
+      const receipt = await client!.waitForTransactionReceipt({ hash });
       const [log] = parseEventLogs({
         abi: invoiceRegistryAbi,
         eventName: "InvoiceCreated",
@@ -282,7 +263,7 @@ export function NewInvoiceForm() {
                 {sentHash && (
                   <a
                     className="underline"
-                    href={explorerTx(sentHash)}
+                    href={explorerTxUrl(sentHash)}
                     target="_blank"
                     rel="noreferrer"
                   >

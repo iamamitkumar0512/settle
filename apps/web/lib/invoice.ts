@@ -66,6 +66,22 @@ export type InvoiceState = {
   isOverdue: boolean;
 };
 
+export type InvoiceRow = readonly [
+  Address,
+  Address,
+  bigint,
+  bigint,
+  bigint,
+  bigint,
+  number,
+  Hex,
+];
+
+export function toInvoice(id: bigint, row: InvoiceRow): Invoice {
+  const [merchant, payer, amount, refunded, dueAt, paidAt, status] = row;
+  return { id, merchant, payer, amount, refunded, dueAt, paidAt, status };
+}
+
 const DUE_SOON_SECONDS = 3n * 24n * 60n * 60n;
 
 export function invoiceState(invoice: Invoice, now: bigint): InvoiceState {

@@ -1,4 +1,6 @@
 import type { Address } from "viem";
+import { invoiceRegistryAbi } from "./abi/invoiceRegistry";
+import { whitechainSepolia } from "./chains";
 
 export const REGISTRY_ADDRESS: Address =
   "0x7ac2BbccfF3156ee4f36E41b5091e2b7E02E21bA";
@@ -10,5 +12,11 @@ export const REGISTRY_DEPLOY_BLOCK = 12320318n;
 
 export const USDT_DECIMALS = 6;
 
-export { invoiceRegistryAbi } from "./abi/invoiceRegistry";
+export const registry = {
+  address: REGISTRY_ADDRESS,
+  abi: invoiceRegistryAbi,
+  chainId: whitechainSepolia.id,
+} as const;
+
+export { invoiceRegistryAbi };
 export { usdtAbi } from "./abi/usdt";
