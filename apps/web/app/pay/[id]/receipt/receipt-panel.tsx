@@ -92,8 +92,8 @@ function Refunds({
 }
 
 export function ReceiptPanel() {
-  const { id, invoice, state } = useInvoice();
-  const records = useInvoiceRecords(id, invoice?.refunded);
+  const { invoice, state } = useInvoice();
+  const records = useInvoiceRecords(invoice);
 
   if (state === "notFound") {
     return <Message title="Receipt not found" text="Check the link and try again." />;
@@ -153,8 +153,8 @@ export function ReceiptPanel() {
             <span className="figure">{shortAddress(invoice.merchant)}</span>
           </Row>
           <Row label="Payment record">
-            {records.data?.paidHash ? (
-              <RecordLink hash={records.data.paidHash} />
+            {records.data?.paid ? (
+              <RecordLink hash={records.data.paid.hash} />
             ) : records.isError ? (
               <button
                 type="button"

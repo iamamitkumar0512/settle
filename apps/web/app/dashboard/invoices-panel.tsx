@@ -99,7 +99,11 @@ function InvoiceRow({ invoice, state }: { invoice: Invoice; state: InvoiceState 
 
   return (
     <tr>
-      <td className="figure">#{String(invoice.id)}</td>
+      <td className="figure">
+        <Link href={`/dashboard/invoices/${invoice.id}`} className="text-accent-text">
+          #{String(invoice.id)}
+        </Link>
+      </td>
       <td>{formatDate(new Date(Number(invoice.dueAt) * 1000))}</td>
       <td>
         <span className={`pill ${state.tone}`}>{state.label}</span>
@@ -124,9 +128,9 @@ function InvoiceRow({ invoice, state }: { invoice: Invoice; state: InvoiceState 
       </td>
       <td className="text-right">
         {state.group === "Open" && <CopyLinkButton id={invoice.id} />}
-        {isPaid && (
-          <Link href={`/pay/${invoice.id}/receipt`} className="btn min-h-[38px]">
-            Receipt
+        {state.group !== "Open" && (
+          <Link href={`/dashboard/invoices/${invoice.id}`} className="btn min-h-[38px]">
+            View
           </Link>
         )}
       </td>
