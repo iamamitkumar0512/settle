@@ -4,7 +4,7 @@ import { storeIntegration } from "@/lib/integration";
 import { PRODUCTS } from "@/lib/products";
 
 export default function StorePage() {
-  const { parts, webhook, lineCount, webhookLineCount } = storeIntegration();
+  const { parts, webhook, agent, lineCount, webhookLineCount } = storeIntegration();
 
   return (
     <main>
@@ -41,7 +41,12 @@ export default function StorePage() {
           by webhook. They are read from its own source files when the site is built. Every order
           lands in the merchant&apos;s Settle dashboard, where it can be refunded and exported.
         </p>
-        {[...parts, webhook].map(({ file, purpose, lines }) => (
+        <p>
+          AI agents shop here too. The last {agent.lines.filter(Boolean).length} lines let an agent
+          buy with no account and no API key, paying over x402. It can read the catalog at{" "}
+          <code>/api/agent/catalog</code>.
+        </p>
+        {[...parts, webhook, agent].map(({ file, purpose, lines }) => (
           <figure key={file} className="card">
             <figcaption>
               <span>{purpose}</span>

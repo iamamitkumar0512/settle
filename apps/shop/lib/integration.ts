@@ -14,6 +14,11 @@ const WEBHOOK_FILE = {
   purpose: "Optional: get told by webhook",
 };
 
+const AGENT_FILE = {
+  file: "app/api/agent/buy/route.ts",
+  purpose: "Sell to AI agents over x402",
+};
+
 // The Settle code in one of this store's files: whatever sits between its region markers.
 function settleLines(file: string) {
   const lines = readFileSync(path.join(process.cwd(), file), "utf8").split("\n");
@@ -32,6 +37,7 @@ export function storeIntegration() {
   return {
     parts,
     webhook,
+    agent: { ...AGENT_FILE, lines: settleLines(AGENT_FILE.file) },
     lineCount: parts.flatMap(({ lines }) => lines).filter(Boolean).length,
     webhookLineCount: webhook.lines.filter(Boolean).length,
   };
