@@ -5,9 +5,10 @@ import { useState } from "react";
 import { CancelSubscription } from "@/components/cancel-subscription";
 import { cancelledBy, ProofLink } from "@/components/subscription-history";
 import { formatDateTime, formatUsdt, periodLabel, shortAddress } from "@/lib/format";
-import { postJson, relayErrorMessage } from "@/lib/relay-client";
+import { postJson } from "@/lib/relay-client";
 import type { Plan, PlanDetails, Subscription } from "@/lib/subscription";
 import { closePlanRequest } from "@/lib/typed-data";
+import { useAutoCollect } from "@/lib/use-auto-collect";
 import { useNow } from "@/lib/use-now";
 import { usePlanDetails } from "@/lib/use-plan-details";
 import { useSession } from "@/lib/use-session";
@@ -85,29 +86,23 @@ function ClosePlan({ plan, onChanged }: { plan: Plan; onChanged: Refresh }) {
 }
 
 // Collecting needs no signature: the contract lets anyone collect a payment that is due.
-function CollectNow({ id, onChanged }: { id: bigint; onChanged: Refresh }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string>();
+type Collection = ReturnType<typeof useAutoCollect>;
 
-  async function collect() {
-    setError(undefined);
-    setBusy(true);
-    const result = await postJson("/api/relay/charge", { id });
-    if (result.ok) await onChanged();
-    else setError(relayErrorMessage(result.error));
-    setBusy(false);
-  }
+// A due payment collects itself while this page is open. The button is only for after a failure.
+function DuePayment({ id, collection }: { id: bigint; collection: Collection }) {
+  const key = String(id);
+  const error = collection.errors.get(key);
+  if (collection.collecting.has(key)) return <span className="pill tone-due">Collecting…</span>;
+  if (!error) return <span className="pill tone-due">Due now</span>;
 
   return (
     <>
-      <button type="button" className="btn btn-primary min-h-[38px]" disabled={busy} onClick={collect}>
-        {busy ? "Collecting…" : "Collect now"}
+      <button type="button" className="btn btn-primary min-h-[38px]" onClick={() => collection.collect(id)}>
+        Try again
       </button>
-      {error && (
-        <p role="alert" className="mt-1.5 text-[13px]/[18px] text-late">
-          {error}
-        </p>
-      )}
+      <p role="alert" className="mt-1.5 text-[13px]/[18px] text-late">
+        {error}
+      </p>
     </>
   );
 }
@@ -117,11 +112,13 @@ function SubscriberRow({
   planActive,
   now,
   onChanged,
+  collection,
 }: {
   subscription: Subscription;
   planActive: boolean;
   now: bigint;
   onChanged: Refresh;
+  collection: Collection;
 }) {
   const isDue = subscription.nextChargeAt <= now;
 
@@ -129,18 +126,17 @@ function SubscriberRow({
     <tr>
       <td className="figure">{shortAddress(subscription.subscriber)}</td>
       <td>
-        {isDue ? (
-          <span className="pill tone-due">Due now</span>
+        {isDue && planActive ? (
+          <DuePayment id={subscription.id} collection={collection} />
+        ) : isDue ? (
+          "Not collected, plan closed"
         ) : (
           formatDateTime(new Date(Number(subscription.nextChargeAt) * 1000))
         )}
       </td>
       <td className="figure">{subscription.periodsLeft}</td>
       <td className="text-right">
-        <div className="flex flex-wrap justify-end gap-2">
-          {isDue && planActive && <CollectNow id={subscription.id} onChanged={onChanged} />}
-          <CancelSubscription id={subscription.id} onChanged={onChanged} />
-        </div>
+        <CancelSubscription id={subscription.id} onChanged={onChanged} />
       </td>
     </tr>
   );
@@ -152,11 +148,13 @@ function SubscriberItem({
   planActive,
   now,
   onChanged,
+  collection,
 }: {
   subscription: Subscription;
   planActive: boolean;
   now: bigint;
   onChanged: Refresh;
+  collection: Collection;
 }) {
   const isDue = subscription.nextChargeAt <= now;
 
@@ -167,15 +165,19 @@ function SubscriberItem({
           <div className="figure">{shortAddress(subscription.subscriber)}</div>
           <div className="text-[13px]/[18px] text-muted">
             {isDue
-              ? "Payment due now"
+              ? "Payment due"
               : `Next payment ${formatDateTime(new Date(Number(subscription.nextChargeAt) * 1000))}`}
             {" · "}
             {subscription.periodsLeft} left
           </div>
         </div>
       </div>
+      {isDue && planActive && (
+        <div>
+          <DuePayment id={subscription.id} collection={collection} />
+        </div>
+      )}
       <div className="flex flex-wrap gap-2">
-        {isDue && planActive && <CollectNow id={subscription.id} onChanged={onChanged} />}
         <CancelSubscription id={subscription.id} onChanged={onChanged} />
       </div>
     </li>
@@ -222,6 +224,7 @@ function PlanCard({
   records,
   now,
   onChanged,
+  collection,
 }: {
   plan: Plan;
   details?: PlanDetails;
@@ -229,10 +232,13 @@ function PlanCard({
   records: (id: bigint) => SubscriptionRecords | undefined;
   now: bigint;
   onChanged: Refresh;
+  collection: Collection;
 }) {
   const active = subscriptions.filter((subscription) => subscription.active);
   const ended = subscriptions.filter((subscription) => !subscription.active).reverse();
   const past = ended.length;
+  const payments = subscriptions.flatMap(({ id }) => records(id)?.payments ?? []);
+  const collected = payments.reduce((sum, { amount }) => sum + amount, 0n);
 
   return (
     <section aria-label={`Plan ${plan.id}`} className="card overflow-hidden">
@@ -260,6 +266,12 @@ function PlanCard({
             {past > 0 && `, ${past} ended`} · {formatUsdt(plan.relayFee)} USDT network fee per
             payment
           </p>
+          {payments.length > 0 && (
+            <p className="mt-0.5 text-[13px]/[18px]">
+              Collected <span className="figure">{formatUsdt(collected)} USDT</span> from{" "}
+              {payments.length} {payments.length === 1 ? "payment" : "payments"}
+            </p>
+          )}
         </div>
         {plan.active && (
           <div className="flex flex-wrap justify-end gap-2">
@@ -277,6 +289,7 @@ function PlanCard({
               planActive={plan.active}
               now={now}
               onChanged={onChanged}
+              collection={collection}
             />
           ))}
         </ul>
@@ -301,6 +314,7 @@ function PlanCard({
                   planActive={plan.active}
                   now={now}
                   onChanged={onChanged}
+                  collection={collection}
                 />
               ))}
             </tbody>
@@ -332,22 +346,26 @@ export function PlansPanel() {
   const mine = plans.plans
     .filter((plan) => plan.merchant.toLowerCase() === address?.toLowerCase())
     .reverse();
-  // Only subscribers who have left: the proof of how each one ended.
-  const records = useSubscriptionRecords(
-    subscriptions.subscriptions.filter(
-      (subscription) => !subscription.active && mine.some(({ id }) => id === subscription.planId),
-    ),
+  const subscribers = subscriptions.subscriptions.filter(({ planId }) =>
+    mine.some(({ id }) => id === planId),
   );
+  const records = useSubscriptionRecords(subscribers);
 
   async function refresh() {
     await Promise.all([plans.refetch(), subscriptions.refetch()]);
   }
 
+  const due = subscribers.filter(({ active, nextChargeAt, planId }) => {
+    const plan = mine.find(({ id }) => id === planId);
+    return active && plan?.active === true && nextChargeAt <= now;
+  });
+  const collection = useAutoCollect(due, refresh);
+
   if (plans.isError || subscriptions.isError) {
     return (
       <section role="alert" className="card flex flex-col items-center gap-3 px-6 py-16 text-center">
         <h2 className="display text-xl">Couldn&apos;t load your plans</h2>
-        <p className="text-muted">Whitechain didn&apos;t respond. Your plans are safe on-chain.</p>
+        <p className="text-muted">The network didn&apos;t respond. Your plans are safe.</p>
         <button type="button" className="btn" onClick={refresh}>
           Try again
         </button>
@@ -385,6 +403,7 @@ export function PlansPanel() {
           records={records}
           now={now}
           onChanged={refresh}
+          collection={collection}
         />
       ))}
     </>

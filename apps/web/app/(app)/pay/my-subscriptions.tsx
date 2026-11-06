@@ -4,6 +4,8 @@ import { CancelSubscription } from "@/components/cancel-subscription";
 import { cancelledBy, SubscriptionHistory } from "@/components/subscription-history";
 import { formatDateTime, formatUsdt, periodLabel, shortAddress } from "@/lib/format";
 import type { Plan, Subscription } from "@/lib/subscription";
+import { useAutoCollect } from "@/lib/use-auto-collect";
+import { useNow } from "@/lib/use-now";
 import { usePlanDetails } from "@/lib/use-plan-details";
 import { useSession } from "@/lib/use-session";
 import type { SubscriptionRecords } from "@/lib/use-subscription-records";
@@ -15,6 +17,8 @@ function standing(
   subscription: Subscription,
   plan: Plan | undefined,
   records: SubscriptionRecords | undefined,
+  now: bigint,
+  problem: string | undefined,
 ) {
   if (subscription.active && plan && !plan.active) {
     return {
@@ -22,6 +26,11 @@ function standing(
       tone: "",
       text: "The business closed this plan. Nothing more will be taken.",
     };
+  }
+  if (subscription.active && subscription.nextChargeAt <= now) {
+    return problem
+      ? { label: "Payment due", tone: "tone-late", text: `This payment didn't go through. ${problem}` }
+      : { label: "Payment due", tone: "tone-due", text: "Collecting this payment…" };
   }
   if (subscription.active) {
     const left = `${subscription.periodsLeft} ${subscription.periodsLeft === 1 ? "payment" : "payments"} left`;
@@ -44,10 +53,16 @@ export function MySubscriptions() {
   const plans = usePlans();
   const subscriptions = useSubscriptions();
   const planDetails = usePlanDetails();
+  const now = useNow();
 
   const mine = subscriptions.subscriptions
     .filter((subscription) => subscription.subscriber.toLowerCase() === address?.toLowerCase())
     .sort((a, b) => Number(b.active) - Number(a.active) || Number(b.id - a.id));
+  const due = mine.filter(({ active, nextChargeAt, planId }) => {
+    const plan = plans.plans.find(({ id }) => id === planId);
+    return active && plan?.active === true && nextChargeAt <= now;
+  });
+  const { errors } = useAutoCollect(due, subscriptions.refetch);
   const records = useSubscriptionRecords(mine);
   if (mine.length === 0) return null;
 
@@ -59,7 +74,8 @@ export function MySubscriptions() {
           const plan = plans.plans.find(({ id }) => id === subscription.planId);
           const details = planDetails(subscription.planId);
           const history = records(subscription.id);
-          const { label, tone, text } = standing(subscription, plan, history);
+          const problem = errors.get(String(subscription.id));
+          const { label, tone, text } = standing(subscription, plan, history, now, problem);
           return (
             <li
               key={String(subscription.id)}
