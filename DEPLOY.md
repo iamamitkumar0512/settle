@@ -26,7 +26,7 @@ Only you can do these, because they need your accounts, keys or funds.
 | 8 | An npm account | To publish `@akhr2405/settle-pay`. Optional, but the docs tell developers to install it. |
 | 9 | A Swarm postage batch, from the Swarm booth | Optional. Needed for the Swarm bonus. |
 | 10 | An `ANTHROPIC_API_KEY` | Optional. The restock agent's AI, for the video. The live check doesn't need it. |
-| 11 | A domain verified in Resend | Optional. Without it, emails only reach your own Resend address, and "Email it from Settle" tells a merchant it is in test mode. The mail app and copy options still work. |
+| 11 | A Gmail app password, or a domain verified in Resend | Optional. Either one lets Settle email reminders to customers. Gmail needs no domain: turn on 2-Step Verification, then create an app password at `myaccount.google.com/apppasswords`. Without either, "Email it from Settle" is hidden or in test mode. The mail app and copy options still work. |
 
 The relayer wallet is `0x21dc07cFe6Aa4f141b5950CFb72F310F5817836C`.
 
@@ -55,7 +55,8 @@ Add these settings before the first build.
 | `DEMO_TOPUP_USDT` | Yes, for judges | `5`. Without it a new customer has no way to get test money. |
 | `CRON_SECRET` | Recommended | Any long random text. It protects the two daily jobs. |
 | `SWARM_BEE_URL`, `SWARM_BATCH_ID` | Optional | PDF invoices. The upload field is hidden without both. |
-| `RESEND_API_KEY` | Optional | Reminder emails. |
+| `SMTP_USER`, `SMTP_PASS` | Optional | A Gmail address and its app password, so reminder emails reach any customer. Used instead of Resend when set. |
+| `RESEND_API_KEY` | Optional | Reminder emails through Resend. |
 | `REMINDER_FROM` | Optional | A sender on your verified Resend domain, for example `Settle <hello@yourdomain.com>`. Needed before reminders reach customers. |
 | `NEXT_PUBLIC_RPC_URL` | Leave it out | Without it, browsers use the public RPC. Anything here is visible to visitors, including a key inside the address. |
 

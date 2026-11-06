@@ -177,8 +177,9 @@ address and has no email on file.
   the invoice's pay link and opens it in the merchant's own mail app, or copies it for any chat.
 - **In the customer's calendar.** The pay page has Add to calendar. It downloads a calendar file
   for the due date with an alert the morning before and on the day.
-- **By email, optional.** With `RESEND_API_KEY` set, Settle emails the customer once shortly before
-  the due date and once after it, and the Remind button can send from Settle too.
+- **By email, optional.** With a Gmail app password in `SMTP_USER` and `SMTP_PASS`, or
+  `RESEND_API_KEY`, Settle emails the customer once shortly before the due date and once after it,
+  and the Remind button can send from Settle too.
 
 ## The relayer
 
@@ -388,9 +389,10 @@ To see the Arkiv side yourself, follow [`TESTING.md`](TESTING.md).
 - A wallet customer signs twice to subscribe. With nobody on the app, a due payment waits for the
   daily job. There is no webhook for a subscription payment yet, and a merchant sees a subscriber by
   address, not by name.
-- Automatic reminder emails need a mail provider's key and are off without one. They have only
-  run against a stand-in for that provider. A wallet customer sees the in-app reminder only after
-  signing in once, because invoices sent to a wallet are private. Calendar alerts depend on the
+- Reminder emails need a Gmail app password or a mail provider's key and are off without one. The
+  Remind button has sent a real one through Gmail, but the daily job has only run against a
+  stand-in. A wallet customer sees the in-app reminder only after signing in once, because invoices
+  sent to a wallet are private. Calendar alerts depend on the
   customer's calendar app; Google Calendar replaces them with its own default alert.
 - The relayer is one wallet with one send queue, and rate limits are counted in memory. Both
   assume a single running copy of the app.
