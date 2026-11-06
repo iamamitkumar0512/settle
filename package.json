@@ -13,6 +13,9 @@
     "dev:store": "pnpm --filter settle-pay build && pnpm --filter chai-point dev",
     "build": "pnpm --filter @settle/web build",
     "build:store": "pnpm --filter chai-point build",
+    "agent:wallet": "pnpm --filter restock-agent wallet",
+    "agent:start": "pnpm --filter restock-agent start",
+    "agent:check": "pnpm --filter restock-agent check",
     "test:contracts": "cd contracts && forge test -vv"
   },
   "pnpm": {

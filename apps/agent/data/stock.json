@@ -1,0 +1,8 @@
+{
+  "cafe": "Marine Drive Cafe",
+  "items": [
+    { "id": "masala", "name": "Masala chai blend", "onHand": 2, "minimum": 5 },
+    { "id": "kulhad", "name": "Clay kulhad cups", "onHand": 9, "minimum": 4 },
+    { "id": "ginger", "name": "Ginger tulsi tea", "onHand": 6, "minimum": 4 }
+  ]
+}
