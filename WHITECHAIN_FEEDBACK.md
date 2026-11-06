@@ -54,10 +54,20 @@ pay with one signature and no gas.
    supply is small, so it is capped.
 8. **Pay-per-request pricing has a floor.** We measured one USDT transfer by signature at 101,265
    gas. At 5 gwei and the explorer's WBT price, that is about 0.037 USDT. The test USDT accepts a
-   standard x402-style `transferWithAuthorization` from a wallet holding no WBT, but a charge
-   under about 0.25 USDT would lose a large share to gas.
+   standard x402 `transferWithAuthorization` from a wallet holding no WBT, but a charge under about
+   0.25 USDT would lose a large share to gas. This pushed us from per-call API pricing to real
+   orders of 1 USDT and up. The agent's payment and the merchant's gas repayment fit in one
+   Multicall3 transaction at about 157,000 gas, or 0.057 USDT.
 9. **An order costs gas before anyone pays.** A store's order is created on-chain when checkout
    opens, so an abandoned cart costs the relayer a few cents of gas. We cap it per merchant per day.
+
+10. **No x402 facilitator for Whitechain.** We wrote our own, as the track suggests. The standard
+    `@x402/fetch` and `@x402/evm` clients worked on chain 1874 with no changes to them. Their
+    spending controls refuse any token they don't recognise, so an agent has to list this USDT by
+    address under `allowedAssets`. A line about that in the docs would save someone an hour.
+11. **`exact` leaves the gas question open.** x402's `exact` scheme pays `payTo` in full, so the
+    spec has no way to charge the business for gas. We added a signed repayment from the merchant
+    in the same transaction, which means our `/settle` needs a field a plain x402 server won't send.
 
 ## What the docs were missing
 

@@ -3,8 +3,8 @@
 This walks through every feature, with what you should see at each step. It takes about an hour.
 Do it once locally, then repeat the parts marked **Live** on the deployed app.
 
-The three things the tracks judge have a part each: the SDK in Parts 10 and 11, Arkiv in Part 12
-and Swarm in Part 13.
+The things the tracks judge have a part each: the SDK in Parts 10 and 11, Arkiv in Part 12, Swarm
+in Part 13 and AI agents in Part 14.
 
 Everything here was also checked automatically on a local copy of the chain, with a scripted
 wallet. Email login could not be checked that way, so the steps marked **Email only** matter most.
@@ -396,7 +396,61 @@ who finds the reference on Arkiv still can't read the invoice.
 postage batch at the Swarm booth, put it in `SWARM_BATCH_ID`, repeat this part, and write the
 batch and one reference into `arkiv/swarm.md`.
 
-## Part 14: A browser wallet
+## Part 14: An AI agent
+
+A cafe's agent buys from Chai Point by itself over x402. It needs Parts 9 and 10 done, with the
+store running and its webhook set up.
+
+**Set it up.** This makes the agent's wallet, saves the key in `apps/agent/.env` and prints the
+address.
+
+```bash
+pnpm agent:wallet
+```
+
+| Do this | You should see |
+|---|---|
+| In Settle, open **Account** and send 10 USDT to that address | "Sent." |
+| Copy `apps/agent/.env.example` into `apps/agent/.env`, keeping the `AGENT_KEY` line | `STORE_URL` is the store, `STORE_ADDRESS` is the store's Key ID, `SETTLE_URL` is Settle. |
+
+**Run the full check.** No AI is involved. It makes one real purchase of 1.25 USDT.
+
+```bash
+pnpm agent:check
+```
+
+It prints 20 lines starting PASS, then `EVERYTHING PASSED` and a proof link. They cover:
+
+| Group | You should see |
+|---|---|
+| Setup | The agent holds no WBT, and the store and Settle answer. |
+| Refused, costing nothing | No payment, a changed amount, too little, the wrong recipient, an expired signature, garbage, and a forged signature. |
+| The agent's own limit | A price over its cap is never signed. |
+| A real purchase | It goes through, the agent pays exactly 1.25, and it still holds no WBT. |
+| Retries | The same request again isn't charged and returns the same order. |
+
+**Run the agent.** Add `ANTHROPIC_API_KEY` to `apps/agent/.env` first.
+
+```bash
+pnpm agent:start
+```
+
+| Do this | You should see |
+|---|---|
+| Run the command | The agent's address, its USDT, and `0 WBT`. |
+| Watch the terminal | It reads the stockroom and the catalog, orders 3 of masala, and prints `The store answered 402`, then `200`, then a proof link. |
+| Look at the end | A short summary, and 4.50 USDT less in its wallet, still with `0 WBT`. |
+| Look at the store's terminal | `Ship order chai-…`. |
+| Merchant: open **Invoices** | Under **Agent sales**: "3 x Masala chai blend", 4.50 USDT, what you received after the network fee, and a proof link. **Collected** went up. |
+| Press **Export CSV** | A row with status `Agent sale`. |
+| Open **Developers** | An `order.paid` row marked "Delivered · 200". |
+| Open the proof link | One transaction with two USDT transfers: the agent to the store, and the store to the relayer for gas. |
+| Open the agent's address on the explorer | No transactions sent from it, and 0 WBT. Its USDT moved under Token transfers. |
+
+**Live:** run `pnpm agent:check` against the deployed addresses first, then record `pnpm agent:start`
+for the video. Save the proof link for the README.
+
+## Part 15: A browser wallet
 
 Skip this if you only want the email path. Use MetaMask or Rabby on Whitechain Sepolia.
 
@@ -406,7 +460,7 @@ Skip this if you only want the email path. Use MetaMask or Rabby on Whitechain S
 | On Invoices, press **Show customer details** | One signature request. It costs no gas. Customer names then appear. |
 | Pay an invoice | One signature request, no gas. Or tick "Pay the gas from my wallet in WBT instead" to send two normal transactions. |
 
-## Part 15: On a phone
+## Part 16: On a phone
 
 Open the app on your phone, or use your browser's phone view.
 
@@ -430,6 +484,10 @@ Open the app on your phone, or use your browser's phone view.
 | "Enter a public https address." when saving a webhook | Local addresses are refused unless `WEBHOOK_ALLOW_LOCAL=true`. | Set it locally only. |
 | "Too many requests." | More than 30 requests a minute from one address. | Wait a minute. |
 | Customer names show as "Hidden" | A wallet account hasn't signed in yet. | Press **Show customer details**. |
+| `Set AGENT_KEY in apps/agent/.env` | The agent has no wallet or settings yet. | Run `pnpm agent:wallet` and fill in the file. |
+| `over_the_agent_limit` | The price is above `MAX_PER_PAYMENT`, or the store isn't `STORE_ADDRESS`. | Raise the limit, or fix the address. |
+| `insufficient_funds` from the agent | Its wallet has too little USDT. | Send it more from the Account page. |
+| `payment_in_progress` | A payment for that order is still valid. | Wait two minutes. It may yet go through. |
 | "Email from Settle is in test mode…" | Resend only delivers to its own account's address until a domain is verified. | Use the mail app or copy options, or verify a domain and set `REMINDER_FROM`. |
 | `Set SETTLE_BASE_URL, SETTLE_KEY_ID and SETTLE_KEY_SECRET…` | The SDK example found no keys. | Fill in `apps/shop/.env`, as in Part 10. |
 | `Stopped: Couldn't reach Settle. (network)` | The app isn't running, or `SETTLE_BASE_URL` is wrong. | Start the app. Check the address in `apps/shop/.env`. |
@@ -454,6 +512,11 @@ These ran on a local copy of Whitechain Sepolia with the real test USDT.
 | A PDF from the form to Swarm and back, for four kinds of visitor | 7 |
 | Starting fresh on New invoice and New plan | 7 |
 | The receipt link, every answer the email service can give, and a subscription's record | 32 |
+| Agent payments through a real store: the check in Part 14 | 20 |
+| The facilitator: the standard client, attacks on the relayer, races, webhooks | 24 |
+| Settle killed with the payment on-chain, then the same order repeated | 7 |
+| An empty relayer, an Arkiv write failing, and a log server running behind | 11 |
+| Agent sales on the dashboard, CSV, Developers, docs and store, on desktop and phone | 11 |
 
 The commands in Parts 11, 12 and 13 were each run as written. For one test PDF of 193 bytes,
 Swarm held 221 bytes that did not start with `%PDF`, and the Arkiv query did not contain the
@@ -462,6 +525,9 @@ customer's name or address.
 ## What only you can check
 
 - Everything marked **Email only**, above all "Reveal key secret".
+- The agent with real Claude. Its full run was tested against a stand-in for the model, so every
+  tool and payment was real but the model's decisions weren't.
+- An agent payment on the live chain.
 - Opening a PDF as the email customer it was sent to. Only wallet customers were checked.
 - Real MetaMask or Rabby popups.
 - Safari and a real phone.

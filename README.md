@@ -11,8 +11,8 @@ Either way the customer pays with an email address, and needs no wallet and no g
 > Whitechain Sepolia, and invoices have been created, paid and refunded there without the customer
 > or the merchant holding gas. Built: an SDK with Settle Checkout and signed webhooks, a separate
 > demo store, email or wallet login, the merchant dashboard, pay page, receipts, refunds,
-> subscriptions, reminders, CSV export, the relayer, Arkiv records and PDF invoices on Swarm. See
-> [Current limitations](#current-limitations).
+> subscriptions, reminders, CSV export, the relayer, Arkiv records, PDF invoices on Swarm, and
+> sales to AI agents over x402. See [Current limitations](#current-limitations).
 
 ## Try it in a few minutes
 
@@ -36,6 +36,7 @@ To add Settle to a website of your own, the app's Docs page has the steps.
 | **Operate:** past the first payment | Refunds in part or in full with a receipt the customer can check, subscriptions that renew and cancel, reminders, a CSV export, signed webhooks |
 | **Scale:** a payer flow with no crypto steps | Email login, one button to pay, no wallet, no gas, no network to choose |
 | **Scale:** who pays the gas, where the WBT comes from, what stops a drain | [The relayer](#the-relayer) |
+| **Scale:** an AI agent pays a business in USDT over x402, with a facilitator you run yourself | [Selling to AI agents](#selling-to-ai-agents) |
 | **Arkiv:** a feature users see reads from Arkiv | Business names, customer details, plans, webhook settings and the delivery log. See [`arkiv/`](arkiv) |
 
 ## Why onchain stablecoin settlement on Whitechain
@@ -54,6 +55,9 @@ It also changes what a payment costs and when it is final:
   store doesn't have to trust Settle's word, or keep a shared secret, to know it was paid.
 - **Recurring billing the customer controls.** A subscription is an allowance with a cap the
   customer signed, and they can cancel it without asking anyone.
+- **A payer with no phone.** An AI agent can't sign up for a card or answer a one-time code, and
+  Indian card and UPI payments ask a person for that second factor outside recurring mandates. An
+  agent can sign a USDT payment by itself, inside a limit its owner set.
 
 USDT on Whitechain supports EIP-3009, so a customer can sign one message and a relayer pays the
 gas. We found no hosted paymaster or bundler for Whitechain, which is why Settle uses EIP-3009 with
@@ -80,6 +84,7 @@ its own relayer.
 | Invoice created without gas (relayed `createFor`) | [`0x9cfc6f6d…e3c416cc`](https://explorer.testnet.whitechain.io/tx/0x9cfc6f6d54b3dbfdc06ffea1b91f6e7639f8c3df856e2c1828d33e15e3c416cc) |
 | Gasless USDT payment (relayed `payWithAuthorization`, 1 USDT) | [`0x8c7dfc4c…79e4eeb2`](https://explorer.testnet.whitechain.io/tx/0x8c7dfc4c484dabbb196aea0fa75e8b6dbc214f5d9af850c69200668d79e4eeb2) |
 | Refund without gas (relayed `refundWithAuthorization`, 1 USDT) | [`0x51207a48…cac2e890`](https://explorer.testnet.whitechain.io/tx/0x51207a48fa1c1b107655432da9af654e68d09b5b6758a4a255ddfcf6cac2e890) |
+| Sale to an AI agent over x402 (agent holds 0 WBT, merchant repays the gas in the same transaction) | [ADD AFTER DEPLOY] |
 | Settled USDT invoice (direct `pay`, 1 USDT, on the first version) | [`0x0b714b19…57c55065`](https://explorer.testnet.whitechain.io/tx/0x0b714b19f379aaa8677df1381f663006bf95eab8f6371d3ce25b835957c55065) |
 
 The payer in the gasless payment, `0x0d99…6aB0`, holds 0 WBT. All three relayed transactions were
@@ -248,6 +253,43 @@ page.
 site and its own server. It takes a payment in 22 lines of Settle code and gets webhooks in 6 more,
 and it prints those lines on its own page.
 
+## Selling to AI agents
+
+Any store on Settle can sell to AI agents by putting a price on one route. Chai Point does it in
+[7 lines](apps/shop/app/api/agent/buy/route.ts), and [`apps/agent`](apps/agent) is a cafe's restock
+agent that buys from it with nobody watching.
+
+1. The agent calls the store. The SDK answers `402` with the price, in x402's `PAYMENT-REQUIRED`
+   header.
+2. The agent signs a standard `TransferWithAuthorization` for that price, and repeats the request.
+3. The store's SDK signs the gas repayment and passes both to Settle's facilitator, at
+   `/api/x402/{verify,settle,supported}`.
+4. Settle checks everything and saves the sale on Arkiv.
+5. The relayer sends one Multicall3 transaction: the agent pays the merchant, and the merchant
+   repays the relayer's gas in USDT. Either both happen or neither does.
+6. The order shows under Agent sales, in the CSV, and at the store's webhook as `order.paid`.
+
+**Any x402 agent works.** The agent side is the unmodified `@x402/fetch` client, and `/verify` and
+`/supported` answer the standard facilitator client. `/settle` needs one extra thing, the merchant's
+signed repayment, which `settle-pay` adds. That is what makes the merchant, not Settle, pay for the
+gas.
+
+**Why it doesn't use `InvoiceRegistry`.** A standard x402 signature is a
+`TransferWithAuthorization`, which pays the merchant directly. The registry takes a
+`receiveWithAuthorization` with a nonce tied to one invoice, so a standard client can't pay it. An
+agent's order doesn't need one either: the registry tracks what is created now and paid later, and
+this order is created and paid in the same moment. The USDT transfer is the proof.
+
+**What stops a drain.** The relayer spends nothing without the merchant's signature, which also
+covers what was sold, so nobody can spend its WBT on a store's behalf or write a fake sale. A dry
+run refuses a bad payment before it costs gas. A sale must be above the 1 USDT minimum, and each
+merchant has a daily cap.
+
+**What stops paying twice.** The sale is saved before the payment is sent, and the token records
+every signature it has used. If the server dies after paying, the agent repeats the request with
+the same id and gets its order back with no second charge. This was tested by killing the server
+with the payment on-chain.
+
 ## PDF invoices on Swarm
 
 A merchant can attach a PDF to an invoice. The server encrypts it, stores it on Swarm, and records
@@ -266,6 +308,7 @@ contracts/
   script/                    deployment, Whitechain Sepolia only
 apps/web/                    the Settle app: dashboard, pay pages, API routes, checkout.js
 apps/shop/                   Chai Point, a separate demo store built on the SDK
+apps/agent/                  a cafe's restock agent, and the check for agent payments
 packages/sdk/                settle-pay, the SDK a store installs to take payments
 arkiv/                       Arkiv schema, feedback and track notes
 ```
@@ -318,6 +361,14 @@ To check every feature by hand, follow [`TESTING.md`](TESTING.md). To deploy bot
   been run end to end yet. The SDK is not on npm until the app has its deployed address.
 - A store's order is created on-chain when checkout starts, so an abandoned cart costs the relayer
   gas. It is capped per merchant per day.
+- A sale to an agent pays the merchant directly, so it has no refund button. To refund one, the
+  merchant sends the money back from the Account page.
+- An agent's limit is per payment. Its total budget is what its wallet holds. A misled agent can
+  still make a bad purchase within its limits.
+- If two copies of the server handle the same agent order at the same instant, both could settle.
+  In one copy, the second is refused. Rate limits and the daily cap are also counted per copy.
+- In a rare race, a payment can pass its dry run and fail on-chain. The relayer then loses about
+  0.017 USDT of gas with no repayment. The daily cap limits this.
 - The test money button stands in for a card or bank payment. It is capped, and only exists on
   testnet.
 - A webhook is tried 3 times over a few seconds. After that the merchant resends it by hand. There

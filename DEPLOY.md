@@ -25,7 +25,8 @@ Only you can do these, because they need your accounts, keys or funds.
 | 7 | A second Settle account, made with an email used only for the store | Its keys go into the store. |
 | 8 | An npm account | To publish `settle-pay`. Optional, but the docs tell developers to install it. |
 | 9 | A Swarm postage batch, from the Swarm booth | Optional. Needed for the Swarm bonus. |
-| 10 | A domain verified in Resend | Optional. Without it, emails only reach your own Resend address, and "Email it from Settle" tells a merchant it is in test mode. The mail app and copy options still work. |
+| 10 | An `ANTHROPIC_API_KEY` | Optional. The restock agent's AI, for the video. The live check doesn't need it. |
+| 11 | A domain verified in Resend | Optional. Without it, emails only reach your own Resend address, and "Email it from Settle" tells a merchant it is in test mode. The mail app and copy options still work. |
 
 The relayer wallet is `0x21dc07cFe6Aa4f141b5950CFb72F310F5817836C`.
 
@@ -147,7 +148,28 @@ store yourself straight away, so judges who open checkout and leave can't block 
    the store.
 4. Press **Send test event**. It should say "Test event delivered."
 
-## Step 7: Run it live and collect proof
+Keep this webhook on. Agent sales reach the store through it.
+
+## Step 7: Check agent payments live
+
+The agent runs from your laptop, so nothing here deploys. In `apps/agent/.env`, set `STORE_URL` to
+`<store>`, `SETTLE_URL` to `<app>`, and `STORE_ADDRESS` to the store account's Key ID.
+
+```bash
+pnpm agent:wallet
+```
+
+Send the printed address 10 test USDT from your Account page, and no WBT. Then run the check. It
+makes one real purchase of 1.25 USDT, and it should end with `EVERYTHING PASSED` and a proof link.
+
+```bash
+pnpm agent:check
+```
+
+If this doesn't pass by 03:00 on Saturday, leave x402 out of the video and README rather than show
+it half working. Part 14 of [`TESTING.md`](TESTING.md) says what each line means.
+
+## Step 8: Run it live and collect proof
 
 Follow [`TESTING.md`](TESTING.md) on the deployed app. While you do, save these explorer links.
 The README's proof table has the first three kinds already and none of the rest.
@@ -159,10 +181,11 @@ The README's proof table has the first three kinds already and none of the rest.
 | A subscription payment collected | The explorer, from the relayer's address |
 | A subscription cancelled | The explorer, from the relayer's address |
 | A withdrawal with no gas | The "Sent." line on the Account page |
+| A sale to an AI agent | The proof line at the end of `pnpm agent:start` |
 
 Give me the links and I will add them to the README.
 
-## Step 8: Finish the submission
+## Step 9: Finish the submission
 
 | File | What to fill in |
 |---|---|
@@ -187,6 +210,8 @@ Arkiv as partners. Aim for 08:30, not 08:59.
   spend lands in your merchant and store accounts, and you can send it back to the relayer from
   the Account page.
 - **Time limits.** Routes that send a transaction or write to Arkiv allow 60 seconds.
+- **Agent payments.** They use the same relayer, and the merchant repays each one in the same
+  transaction. `AGENT_SALES_PER_DAY` (200) caps them per merchant.
 - **Uploads.** PDFs are limited to 2 MB, under Vercel's 4.5 MB request limit.
 - **Pay links.** A link copied from one address doesn't open on another, but its key is the same
   everywhere as long as `ARKIV_DATA_KEY` is.

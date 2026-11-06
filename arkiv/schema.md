@@ -87,6 +87,28 @@ and who is subscribed. Arkiv holds what a customer reads before subscribing.
 The delivery log holds only what the chain already shows, plus the fact that a delivery was tried.
 The address and the secret are never in it.
 
+### `settle_agent_sale_v1`: one per sale to an AI agent
+
+| Column | Type | Indexed | Public | Purpose |
+|---|---|---|---|---|
+| `registry` | `addr` | Yes | Yes | Which deployment it belongs to |
+| `merchant` | `addr` | Yes | Yes | The merchant wallet |
+| `receipt_lookup` | `str` | Yes | Yes, as a keyed hash | Finds a store's order number without showing it |
+| `payment_nonce` | `str` | Yes | Yes | The agent's signature nonce. It links the sale to the token's record |
+| `sold_at` | `u64` | Yes | Yes | When it was saved. Sales list newest first |
+| `payer` | `addr` | No | Yes | The agent's wallet |
+| `amount_usdt` | `u256` | No | Yes | The price |
+| `network_fee` | `u256` | No | Yes | The gas the merchant repays |
+| `valid_before` | `u64` | No | Yes | When the agent's signature expires |
+| `chain_block` | `u64` | No | Yes | Where to start looking for the payment on Whitechain |
+| `merchant_name` | `str` | No | Yes | The business name |
+| `private_details` | `bytes` | No | Encrypted | The order number and what was sold |
+| `private_media_type` | `str` | No | Yes | How that is encrypted |
+
+This record is saved before the payment is sent, so on its own it proves only an attempt. Whether a
+sale was paid is read from the token's record of used signatures. That is what lets a retry find a
+payment even if the server died before it could answer.
+
 ## Fields we query
 
 | Query | Filters | Used by |
@@ -102,6 +124,9 @@ The address and the secret are never in it.
 | A merchant's newest webhook settings | `registry`, `merchant`, creator, newest `saved_at` | Developers page, sending webhooks |
 | A merchant's recent deliveries | `registry`, `merchant`, creator, newest `sent_at`, limit 20 | Developers page |
 | Was this event already delivered? | `registry`, `merchant`, `event_id`, `delivered`, creator | Sending webhooks |
+| A merchant's sales to agents | `registry`, `merchant`, creator, newest `sold_at` | Agent sales on the dashboard, CSV |
+| Has this order number been sold? | `registry`, `merchant`, `receipt_lookup`, creator, newest `sold_at` | Stopping a retry paying twice |
+| The sale behind a payment | `registry`, `payment_nonce`, creator | Building the webhook for an agent sale |
 
 `due_at` is indexed for overdue queries, but the app doesn't query it yet. Overdue status comes from
 the contract's due date.

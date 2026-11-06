@@ -39,6 +39,7 @@ and that would be needed before real use. Webhook deliveries are the opposite ca
 | A third entity type | A subscription plan shows its name and description on the subscribe page, the merchant's Plans page and the customer's list, instead of a number and an address |
 | A fourth entity type | A merchant's webhook address and signing secret on the Developers page, encrypted, with the newest save winning |
 | A fifth entity type, with a short life | Recent deliveries on the Developers page: what reached the merchant's server, what failed, and a Resend button |
+| A sixth entity type | Agent sales on the dashboard. It also stops a retry paying twice: a query by order number finds a sale even if the server died after paying |
 | A public query by merchant | The New invoice and New plan forms fill in the business name from the merchant's last invoice. A store's unpaid order shows as "Awaiting payment", not as money owed |
 | Sorting | The newest webhook settings win, and deliveries list newest first |
 | An indexed flag | An event that already reached the merchant is found by `event_id` and `delivered`, so it is never sent twice |
