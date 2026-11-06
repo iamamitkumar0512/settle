@@ -11,6 +11,7 @@ import { registry, usdtAbi, USDT_ADDRESS } from "@/lib/contracts";
 import { explorerTxUrl, formatDate, formatUsdt, shortAddress } from "@/lib/format";
 import { InvoiceStatus, type Invoice } from "@/lib/invoice";
 import { useInvoice } from "@/lib/use-invoice";
+import { useInvoiceDetails } from "@/lib/use-invoice-details";
 import { isInsufficientGas, isUserRejection, revertName } from "@/lib/wallet-errors";
 
 const REFRESH_MS = 15_000;
@@ -40,18 +41,30 @@ function Shell({ children, aside }: { children: React.ReactNode; aside: React.Re
 }
 
 function InvoiceSummary({ invoice }: { invoice: Invoice }) {
+  const { data: details } = useInvoiceDetails(invoice.id);
+
   return (
     <>
       <div>
         <div className="text-muted">
-          <span className="figure">{shortAddress(invoice.merchant)}</span> is requesting
+          {details?.merchantName ?? (
+            <span className="figure">{shortAddress(invoice.merchant)}</span>
+          )}{" "}
+          is requesting
         </div>
         <div className="figure mt-1 text-5xl/[56px] tracking-tight md:text-[56px]/[64px]">
           {formatUsdt(invoice.amount)}
         </div>
         <div className="figure text-lg text-muted">USDT</div>
       </div>
+      {details?.memo && <p className="border-t border-line pt-4">{details.memo}</p>}
       <div className="flex flex-wrap gap-8 border-t border-line pt-4">
+        {details && (
+          <div>
+            <div className="label">Paid to</div>
+            <div className="figure mt-1">{shortAddress(invoice.merchant)}</div>
+          </div>
+        )}
         <div>
           <div className="label">Invoice</div>
           <div className="figure mt-1">#{String(invoice.id)}</div>

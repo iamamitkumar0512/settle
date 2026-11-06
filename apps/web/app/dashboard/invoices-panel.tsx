@@ -6,11 +6,15 @@ import { zeroAddress } from "viem";
 import { useConnection } from "wagmi";
 import { WalletGate } from "@/components/wallet-gate";
 import { formatDate, formatUsdt, shortAddress } from "@/lib/format";
+import { buildInvoicesCsv } from "@/lib/invoices-csv";
+import { logsClient } from "@/lib/logs-client";
 import {
   invoiceState,
   type Invoice,
   type InvoiceState,
 } from "@/lib/invoice";
+import type { InvoiceCustomer } from "@/lib/merchant-session";
+import { useMerchantDetails } from "@/lib/use-merchant-details";
 import { useMerchantInvoices } from "@/lib/use-merchant-invoices";
 
 const FILTERS = ["All", "Open", "Paid", "Refunded", "Cancelled"] as const;
@@ -94,7 +98,62 @@ function CopyLinkButton({ id }: { id: bigint }) {
   );
 }
 
-function InvoiceRow({ invoice, state }: { invoice: Invoice; state: InvoiceState }) {
+function ExportButton({
+  invoices,
+  now,
+  customers,
+}: {
+  invoices: Invoice[];
+  now: bigint;
+  customers: Map<string, InvoiceCustomer>;
+}) {
+  const { address } = useConnection();
+  const [exporting, setExporting] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  async function download() {
+    if (!address) return;
+    setExporting(true);
+    setFailed(false);
+    try {
+      const csv = await buildInvoicesCsv(logsClient, address, invoices, now, customers);
+      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `settle-invoices-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {
+      setFailed(true);
+    }
+    setExporting(false);
+  }
+
+  return (
+    <div className="flex items-center gap-3">
+      {failed && (
+        <span role="alert" className="text-[13px]/[18px] text-late">
+          Couldn&apos;t export. Try again.
+        </span>
+      )}
+      <button type="button" className="btn" disabled={exporting} onClick={download}>
+        {exporting ? "Preparing…" : "Export CSV"}
+      </button>
+    </div>
+  );
+}
+
+function InvoiceRow({
+  invoice,
+  state,
+  customer,
+  signedIn,
+}: {
+  invoice: Invoice;
+  state: InvoiceState;
+  customer?: InvoiceCustomer;
+  signedIn: boolean;
+}) {
   const isPaid = invoice.payer !== zeroAddress;
 
   return (
@@ -103,6 +162,21 @@ function InvoiceRow({ invoice, state }: { invoice: Invoice; state: InvoiceState 
         <Link href={`/dashboard/invoices/${invoice.id}`} className="text-accent-text">
           #{String(invoice.id)}
         </Link>
+        {customer?.memo && (
+          <div className="font-sans text-[13px]/[18px] font-normal text-muted">{customer.memo}</div>
+        )}
+      </td>
+      <td>
+        {signedIn ? (
+          <>
+            <div>{customer?.customerName || "—"}</div>
+            {customer?.customerEmail && (
+              <div className="text-[13px]/[18px] text-muted">{customer.customerEmail}</div>
+            )}
+          </>
+        ) : (
+          <span className="text-muted">Hidden</span>
+        )}
       </td>
       <td>{formatDate(new Date(Number(invoice.dueAt) * 1000))}</td>
       <td>
@@ -138,8 +212,35 @@ function InvoiceRow({ invoice, state }: { invoice: Invoice; state: InvoiceState 
   );
 }
 
+function CustomerSignIn({ merchant }: { merchant: ReturnType<typeof useMerchantDetails> }) {
+  return (
+    <section className="card flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+      <div>
+        <div className="font-semibold">Customer details are encrypted</div>
+        <div className="text-[13px]/[18px] text-muted">
+          Sign a message to view them. It costs no gas and lasts 24 hours.
+        </div>
+      </div>
+      {merchant.error && (
+        <span role="alert" className="text-[13px]/[18px] text-late">
+          {merchant.error}
+        </span>
+      )}
+      <button
+        type="button"
+        className="btn"
+        disabled={merchant.isSigningIn}
+        onClick={merchant.signIn}
+      >
+        {merchant.isSigningIn ? "Check your wallet" : "Show customer details"}
+      </button>
+    </section>
+  );
+}
+
 function InvoiceList() {
   const { address } = useConnection();
+  const merchant = useMerchantDetails();
   const { invoices, isLoading, isError, retry } = useMerchantInvoices(address);
   const [filter, setFilter] = useState<Filter>("All");
   const [now] = useState(() => BigInt(Math.floor(Date.now() / 1000)));
@@ -185,8 +286,14 @@ function InvoiceList() {
   return (
     <>
       <Summary rows={rows} />
+      {!merchant.isSignedIn && <CustomerSignIn merchant={merchant} />}
+      {merchant.isSignedIn && merchant.error && (
+        <p role="alert" className="text-[13px]/[18px] text-late">
+          {merchant.error}
+        </p>
+      )}
       <section aria-label="Invoices" className="card overflow-hidden">
-        <div className="flex flex-wrap gap-3 px-5 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
           <div role="group" aria-label="Filter by status" className="segmented max-w-full overflow-x-auto">
             {FILTERS.map((option) => (
               <button
@@ -199,6 +306,7 @@ function InvoiceList() {
               </button>
             ))}
           </div>
+          <ExportButton invoices={invoices} now={now} customers={merchant.customers} />
         </div>
         {visible.length === 0 ? (
           <p className="border-t border-line px-5 py-12 text-center text-muted">
@@ -211,6 +319,7 @@ function InvoiceList() {
               <thead>
                 <tr>
                   <th scope="col" className="label">Invoice</th>
+                  <th scope="col" className="label">Customer</th>
                   <th scope="col" className="label">Due</th>
                   <th scope="col" className="label">Status</th>
                   <th scope="col" className="label">Paid by</th>
@@ -220,7 +329,13 @@ function InvoiceList() {
               </thead>
               <tbody>
                 {visible.map(({ invoice, state }) => (
-                  <InvoiceRow key={String(invoice.id)} invoice={invoice} state={state} />
+                  <InvoiceRow
+                    key={String(invoice.id)}
+                    invoice={invoice}
+                    state={state}
+                    customer={merchant.customers.get(String(invoice.id))}
+                    signedIn={merchant.isSignedIn}
+                  />
                 ))}
               </tbody>
             </table>

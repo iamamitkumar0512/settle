@@ -8,7 +8,9 @@ import { WalletGate } from "@/components/wallet-gate";
 import { explorerTxUrl, formatDate, formatDateTime, formatUsdt, shortAddress, shortHash } from "@/lib/format";
 import { InvoiceStatus, invoiceState, type Invoice } from "@/lib/invoice";
 import { useInvoice } from "@/lib/use-invoice";
+import { useInvoiceDetails } from "@/lib/use-invoice-details";
 import { useInvoiceRecords, type InvoiceRecords } from "@/lib/use-invoice-records";
+import { useMerchantDetails } from "@/lib/use-merchant-details";
 import { CancelCard, RefundCard } from "./invoice-actions";
 
 type TimelineEntry = {
@@ -121,6 +123,9 @@ function Detail({ invoice, onChanged }: { invoice: Invoice; onChanged: () => Pro
   const [now] = useState(() => BigInt(Math.floor(Date.now() / 1000)));
   const state = invoiceState(invoice, now);
   const isPaid = invoice.status === InvoiceStatus.Paid || invoice.status === InvoiceStatus.Refunded;
+  const merchant = useMerchantDetails();
+  const { data: details } = useInvoiceDetails(invoice.id);
+  const customer = merchant.customers.get(String(invoice.id));
 
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
@@ -132,6 +137,13 @@ function Detail({ invoice, onChanged }: { invoice: Invoice; onChanged: () => Pro
             </h1>
             <span className={`pill ${state.tone}`}>{state.label}</span>
           </div>
+          {details?.memo && <p className="mt-2">{details.memo}</p>}
+          {customer?.customerName && (
+            <p className="mt-1 text-muted">
+              {customer.customerName}
+              {customer.customerEmail && ` · ${customer.customerEmail}`}
+            </p>
+          )}
           <p className="mt-1 mb-5 text-muted">
             Due {formatDate(new Date(Number(invoice.dueAt) * 1000))}
             {isPaid && (

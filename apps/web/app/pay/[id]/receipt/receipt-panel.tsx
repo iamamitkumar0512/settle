@@ -13,6 +13,7 @@ import {
 } from "@/lib/format";
 import { InvoiceStatus, invoiceState, type Invoice } from "@/lib/invoice";
 import { useInvoice } from "@/lib/use-invoice";
+import { useInvoiceDetails } from "@/lib/use-invoice-details";
 import { useInvoiceRecords, type InvoiceRecords } from "@/lib/use-invoice-records";
 
 function RecordLink({ hash }: { hash: Hash }) {
@@ -94,6 +95,7 @@ function Refunds({
 export function ReceiptPanel() {
   const { invoice, state } = useInvoice();
   const records = useInvoiceRecords(invoice);
+  const { data: details } = useInvoiceDetails(invoice?.id);
 
   if (state === "notFound") {
     return <Message title="Receipt not found" text="Check the link and try again." />;
@@ -131,7 +133,11 @@ export function ReceiptPanel() {
     <main className="mx-auto flex w-full max-w-[560px] flex-1 flex-col gap-5 px-4 py-12">
       <section aria-label="Receipt" className="card flex flex-col gap-6 p-5 md:p-8">
         <div className="flex items-center justify-between gap-4">
-          <span className="figure text-[13px]/[18px]">{shortAddress(invoice.merchant)}</span>
+          {details ? (
+            <span className="display text-lg">{details.merchantName}</span>
+          ) : (
+            <span className="figure text-[13px]/[18px]">{shortAddress(invoice.merchant)}</span>
+          )}
           <span className={`pill ${status.tone}`}>{status.label}</span>
         </div>
         <div>
@@ -143,6 +149,7 @@ export function ReceiptPanel() {
             {formatDateTime(new Date(Number(invoice.paidAt) * 1000))} · Invoice{" "}
             <span className="figure">#{String(invoice.id)}</span>
           </div>
+          {details?.memo && <p className="mt-2">{details.memo}</p>}
         </div>
         <Refunds invoice={invoice} records={records.data} />
         <div className="flex flex-col gap-2 border-t border-dashed border-line-strong pt-4">

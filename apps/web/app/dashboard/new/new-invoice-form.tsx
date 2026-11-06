@@ -1,22 +1,32 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
-import { parseEventLogs, type Hash } from "viem";
-import { usePublicClient, useWriteContract } from "wagmi";
+import { formatEther, parseEventLogs, zeroHash, type Hash, type Hex } from "viem";
+import { useConnection, usePublicClient, useWriteContract } from "wagmi";
 import { WalletGate } from "@/components/wallet-gate";
 import { whitechainSepolia } from "@/lib/chains";
-import { invoiceRegistryAbi, REGISTRY_ADDRESS } from "@/lib/contracts";
+import { invoiceRegistryAbi, registry, REGISTRY_ADDRESS } from "@/lib/contracts";
 import { explorerTxUrl, formatDate, formatUsdt } from "@/lib/format";
 import {
   dueDateToUnix,
   hashInvoiceDetails,
+  INVOICE_LIMITS,
   newSalt,
   parseUsdtAmount,
+  type InvoiceDetails,
 } from "@/lib/invoice";
+import { saveInvoiceDetails } from "@/lib/save-invoice-details";
 import { isInsufficientGas, isUserRejection } from "@/lib/wallet-errors";
 
+// A character takes up to 4 bytes in UTF-8, so these always fit the byte limits.
+const MAX_MERCHANT_NAME = Math.floor(INVOICE_LIMITS.merchantNameBytes / 4);
+const MAX_CUSTOMER_FIELD = Math.floor(INVOICE_LIMITS.customerFieldBytes / 4);
+const MAX_MEMO = Math.floor(INVOICE_LIMITS.memoBytes / 4);
+
 const EMPTY_FORM = {
+  merchantName: "",
   customerName: "",
   customerEmail: "",
   memo: "",
@@ -25,6 +35,8 @@ const EMPTY_FORM = {
 };
 
 type Stage = "editing" | "wallet" | "confirming";
+type SaveState = "saving" | "saved" | "failed";
+type CreatedInvoice = { id: bigint; hash: Hash; details: InvoiceDetails; salt: Hex };
 
 function displayAmount(text: string) {
   return formatUsdt(parseUsdtAmount(text) ?? 0n);
@@ -37,10 +49,14 @@ function displayDate(date: string) {
 function CreatedPanel({
   id,
   hash,
+  saveState,
+  onRetrySave,
   onReset,
 }: {
   id: bigint;
   hash: Hash;
+  saveState: SaveState;
+  onRetrySave: () => void;
   onReset: () => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -66,6 +82,20 @@ function CreatedPanel({
           {copied ? "Link copied" : "Copy pay link"}
         </button>
       </div>
+      {saveState === "failed" ? (
+        <div role="alert" className="well flex flex-wrap items-center justify-between gap-3">
+          <span className="text-[13px]/[18px] text-late">
+            The invoice exists, but its details weren&apos;t saved. Stay on this page and retry.
+          </span>
+          <button type="button" className="btn" onClick={onRetrySave}>
+            Retry saving
+          </button>
+        </div>
+      ) : (
+        <p className="text-[13px]/[18px] text-muted">
+          {saveState === "saving" ? "Saving invoice details…" : "Invoice details saved."}
+        </p>
+      )}
       <a
         href={explorerTxUrl(hash)}
         target="_blank"
@@ -75,7 +105,7 @@ function CreatedPanel({
         View on explorer ↗
       </a>
       <div className="flex flex-wrap justify-end gap-2">
-        <button type="button" className="btn" onClick={onReset}>
+        <button type="button" className="btn" disabled={saveState === "saving"} onClick={onReset}>
           Create another
         </button>
         <Link href="/dashboard" className="btn btn-primary">
@@ -88,20 +118,49 @@ function CreatedPanel({
 
 export function NewInvoiceForm() {
   const client = usePublicClient({ chainId: whitechainSepolia.id });
+  const { address } = useConnection();
   const write = useWriteContract();
+  const fee = useQuery({
+    queryKey: ["create-invoice-fee", address],
+    enabled: Boolean(client && address),
+    refetchInterval: 60_000,
+    queryFn: async () => {
+      const dueAt = BigInt(Math.floor(Date.now() / 1000) + 86_400);
+      const [gas, gasPrice] = await Promise.all([
+        client!.estimateContractGas({
+          ...registry,
+          functionName: "create",
+          args: [1n, dueAt, zeroHash],
+          account: address,
+        }),
+        client!.getGasPrice(),
+      ]);
+      return gas * gasPrice;
+    },
+  });
 
   const [form, setForm] = useState(EMPTY_FORM);
   const [stage, setStage] = useState<Stage>("editing");
   const [amountError, setAmountError] = useState<string>();
   const [dateError, setDateError] = useState<string>();
+  const [nameError, setNameError] = useState<string>();
   const [submitError, setSubmitError] = useState<string>();
   const [sentHash, setSentHash] = useState<Hash>();
-  const [created, setCreated] = useState<{ id: bigint; hash: Hash }>();
+  const [created, setCreated] = useState<CreatedInvoice>();
+  const [saveState, setSaveState] = useState<SaveState>("saving");
 
   const busy = stage !== "editing";
 
   function update(field: keyof typeof EMPTY_FORM, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  async function saveDetails(invoice: CreatedInvoice) {
+    setSaveState("saving");
+    const saved = await saveInvoiceDetails(invoice.id, invoice.details, invoice.salt).catch(
+      () => false,
+    );
+    setSaveState(saved ? "saved" : "failed");
   }
 
   function reset() {
@@ -121,12 +180,15 @@ export function NewInvoiceForm() {
       amount === null ? "Enter an amount above 0, with up to 6 decimals." : undefined,
     );
     setDateError(dueAt === null ? "Choose today or a later date." : undefined);
+    setNameError(form.merchantName.trim() ? undefined : "Enter your business name.");
     setSubmitError(undefined);
     setSentHash(undefined);
-    if (amount === null || dueAt === null) return;
+    if (amount === null || dueAt === null || !form.merchantName.trim()) return;
 
-    const { customerName, customerEmail, memo } = form;
-    const ref = hashInvoiceDetails({ customerName, customerEmail, memo }, newSalt());
+    const { merchantName, customerName, customerEmail, memo } = form;
+    const details = { merchantName, customerName, customerEmail, memo };
+    const salt = newSalt();
+    const ref = hashInvoiceDetails(details, salt);
 
     let hash: Hash;
     setStage("wallet");
@@ -162,7 +224,9 @@ export function NewInvoiceForm() {
       if (receipt.status !== "success" || !log) {
         setSubmitError("The transaction failed, so no invoice was created.");
       } else {
-        setCreated({ id: log.args.id, hash });
+        const invoice = { id: log.args.id, hash, details, salt };
+        setCreated(invoice);
+        await saveDetails(invoice);
       }
     } catch {
       // The transaction was sent, so asking to retry could create a duplicate.
@@ -177,11 +241,34 @@ export function NewInvoiceForm() {
     <WalletGate>
       <div className="grid items-start gap-6 lg:grid-cols-[7fr_5fr]">
         {created ? (
-          <CreatedPanel id={created.id} hash={created.hash} onReset={reset} />
+          <CreatedPanel
+            id={created.id}
+            hash={created.hash}
+            saveState={saveState}
+            onRetrySave={() => saveDetails(created)}
+            onReset={reset}
+          />
         ) : (
           <form className="card flex flex-col gap-5 p-6" onSubmit={onSubmit} noValidate>
             <fieldset disabled={busy} className="flex flex-col gap-5">
               <legend className="sr-only">Invoice details</legend>
+              <label className="field">
+                Your business name
+                <input
+                  className="input"
+                  type="text"
+                  autoComplete="organization"
+                  maxLength={MAX_MERCHANT_NAME}
+                  aria-invalid={nameError ? true : undefined}
+                  value={form.merchantName}
+                  onChange={(event) => update("merchantName", event.target.value)}
+                />
+                {nameError && (
+                  <span role="alert" className="text-[13px]/[18px] font-normal text-late">
+                    {nameError}
+                  </span>
+                )}
+              </label>
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="field">
                   Customer
@@ -189,6 +276,7 @@ export function NewInvoiceForm() {
                     className="input"
                     type="text"
                     autoComplete="off"
+                    maxLength={MAX_CUSTOMER_FIELD}
                     value={form.customerName}
                     onChange={(event) => update("customerName", event.target.value)}
                   />
@@ -199,6 +287,7 @@ export function NewInvoiceForm() {
                     className="input"
                     type="email"
                     autoComplete="off"
+                    maxLength={MAX_CUSTOMER_FIELD}
                     value={form.customerEmail}
                     onChange={(event) => update("customerEmail", event.target.value)}
                   />
@@ -210,6 +299,7 @@ export function NewInvoiceForm() {
                   className="input"
                   type="text"
                   autoComplete="off"
+                  maxLength={MAX_MEMO}
                   value={form.memo}
                   onChange={(event) => update("memo", event.target.value)}
                 />
@@ -253,10 +343,14 @@ export function NewInvoiceForm() {
                 </label>
               </div>
             </fieldset>
-            <div className="well flex items-baseline justify-between gap-4 text-[13px]/[18px]">
-              <span className="text-muted">Creating this invoice costs you</span>
-              <span className="figure">about 0.0006 WBT</span>
-            </div>
+            {fee.data !== undefined && (
+              <div className="well flex items-baseline justify-between gap-4 text-[13px]/[18px]">
+                <span className="text-muted">Creating this invoice costs you</span>
+                <span className="figure">
+                  about {Number(formatEther(fee.data)).toFixed(4)} WBT
+                </span>
+              </div>
+            )}
             {submitError && (
               <p role="alert" className="text-[13px]/[18px] text-late">
                 {submitError}{" "}
@@ -289,10 +383,10 @@ export function NewInvoiceForm() {
           <div className="label">What your customer sees</div>
           <div data-theme="light" className="theme-root rounded-[14px] p-6">
             <div className="card flex flex-col gap-4 p-6">
-              <div className="display text-lg">Your business</div>
+              <div className="display text-lg">{form.merchantName || "—"}</div>
               <div>
                 <div className="text-[13px]/[18px] text-muted">
-                  {form.memo || "What this invoice is for"}
+                  {form.memo || "—"}
                 </div>
                 <div className="figure mt-1 text-4xl/11 break-all">
                   {displayAmount(form.amount)} <span className="text-base text-muted">USDT</span>
@@ -308,9 +402,6 @@ export function NewInvoiceForm() {
               </div>
               <div className="btn btn-primary btn-wide cursor-default">
                 Pay {displayAmount(form.amount)} USDT
-              </div>
-              <div className="text-center text-[13px]/[18px] text-muted">
-                No wallet needed. No network fees.
               </div>
             </div>
           </div>
