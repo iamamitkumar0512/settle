@@ -8,13 +8,14 @@ import { addr, bytes, defineSchema, str, u256, u64 } from "@arkiv-network/sdk/sc
 import { formatUnits, hexToString, http } from "viem";
 
 const WRITER = "0x7d404608B53998044fDDf5d07f6da8092d155278";
-const LIVE_REGISTRY = "0x7ac2BbccfF3156ee4f36E41b5091e2b7E02E21bA";
+const LIVE_REGISTRY = "0x4c6F09e112CaF53f2922b382DafD8Aa95826628F";
 
-const InvoiceRecord = defineSchema("settle_invoice_v1", {
+const InvoiceRecord = defineSchema("settle_invoice_v2", {
   registry: addr().indexed(),
   invoice_id: u64().indexed(),
   merchant: addr().indexed(),
   due_at: u64().indexed(),
+  customer_lookup: str().indexed(),
   amount_usdt: u256(),
   merchant_name: str(),
   public_details: bytes(),

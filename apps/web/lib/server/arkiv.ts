@@ -11,7 +11,8 @@ import { hexToBytes, hexToString, http, stringToBytes, type Address, type Hex } 
 import { privateKeyToAccount } from "viem/accounts";
 import { getGasPrice } from "viem/actions";
 import { REGISTRY_ADDRESS } from "@/lib/contracts";
-import type { InvoiceCustomer } from "@/lib/merchant-session";
+import type { CustomerInvoice, InvoiceCustomer } from "@/lib/customer-invoices";
+import { customerLookup, normalizeEmail } from "./customer-lookup";
 import {
   decryptPrivateDetails,
   encryptPrivateDetails,
@@ -23,11 +24,12 @@ const WRITE_GAS = 1_800_000n;
 const MAX_WRITE_COST_WEI = 2_000_000_000_000_000n;
 const PAGE_SIZE = 100;
 
-export const InvoiceRecord = defineSchema("settle_invoice_v1", {
+export const InvoiceRecord = defineSchema("settle_invoice_v2", {
   registry: addr().indexed(),
   invoice_id: u64().indexed(),
   merchant: addr().indexed(),
   due_at: u64().indexed(),
+  customer_lookup: str().indexed(),
   amount_usdt: u256(),
   merchant_name: str(),
   public_details: bytes(),
@@ -100,6 +102,24 @@ export async function readPublicDetails(id: bigint) {
   };
 }
 
+export async function readMerchantInvoiceIds(merchant: Address) {
+  const ids: bigint[] = [];
+  const reader = arkivReader();
+
+  for (let offset = 0; ; offset += PAGE_SIZE) {
+    const page = await reader
+      .select({ invoice_id: true })
+      .from(InvoiceRecord)
+      .where(and(eq("registry", addr(REGISTRY_ADDRESS)), eq("merchant", addr(merchant))))
+      .createdBy(writerAccount().address)
+      .limit(PAGE_SIZE)
+      .offset(offset)
+      .fetch();
+    for (const row of page.entities) ids.push(BigInt(row.invoice_id.value));
+    if (page.entities.length < PAGE_SIZE) return ids;
+  }
+}
+
 export async function readMerchantCustomers(merchant: Address) {
   const customers: InvoiceCustomer[] = [];
   const reader = arkivReader();
@@ -141,6 +161,47 @@ export async function readMerchantCustomers(merchant: Address) {
   }
 }
 
+export async function readCustomerInvoices(email: string) {
+  const invoices: CustomerInvoice[] = [];
+  const reader = arkivReader();
+  const lookup = str(customerLookup(email));
+
+  for (let offset = 0; ; offset += PAGE_SIZE) {
+    const page = await reader
+      .select({
+        invoice_id: true,
+        merchant_name: true,
+        public_details: true,
+        private_details: true,
+        private_media_type: true,
+      })
+      .from(InvoiceRecord)
+      .where(and(eq("registry", addr(REGISTRY_ADDRESS)), eq("customer_lookup", lookup)))
+      .createdBy(writerAccount().address)
+      .limit(PAGE_SIZE)
+      .offset(offset)
+      .fetch();
+
+    for (const row of page.entities) {
+      const id = BigInt(row.invoice_id.value);
+      const details = await decryptPrivateDetails(
+        id,
+        hexToBytes(row.private_details.value),
+        row.private_media_type.value,
+      ).catch(() => null);
+      if (details && normalizeEmail(details.customerEmail) === normalizeEmail(email)) {
+        invoices.push({
+          id: String(id),
+          merchantName: row.merchant_name.value,
+          memo: memoFrom(row.public_details.value),
+        });
+      }
+    }
+
+    if (page.entities.length < PAGE_SIZE) return invoices;
+  }
+}
+
 // One wallet has one nonce sequence, so writes in this process go one at a time.
 let lastWrite: Promise<unknown> = Promise.resolve();
 
@@ -178,6 +239,7 @@ async function createRecord(input: InvoiceRecordInput) {
       invoice_id: u64(id),
       merchant: addr(merchant),
       due_at: u64(dueAt),
+      customer_lookup: str(customerLookup(customerEmail)),
       amount_usdt: u256(amount),
       merchant_name: str(merchantName),
       public_details: bytes(stringToBytes(JSON.stringify({ memo }))),
