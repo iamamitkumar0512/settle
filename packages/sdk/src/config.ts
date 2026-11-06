@@ -2,8 +2,7 @@ import { parseAbi } from "viem";
 
 // Where Settle is deployed: Whitechain Sepolia.
 export const DEFAULTS = {
-  // Filled in when Settle is deployed. Until then `baseUrl` must be passed.
-  baseUrl: "",
+  baseUrl: "https://settle-usdt.vercel.app",
   chainId: 1874,
   rpcUrl: "https://rpc.testnet.whitechain.io",
   registryAddress: "0x4c6F09e112CaF53f2922b382DafD8Aa95826628F",

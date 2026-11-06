@@ -149,7 +149,7 @@ export function DocsContent({ demoStore }: { demoStore?: string }) {
 
         <Section id="install" step={1} title="Install">
           <p className="text-muted">The SDK runs on your server, on Node 20 or later.</p>
-          <CodeBlock code="npm install settle-pay" label="Copy command" />
+          <CodeBlock code="npm install @akhr2405/settle-pay" label="Copy command" />
         </Section>
 
         <Section id="keys" step={2} title="Get your keys">

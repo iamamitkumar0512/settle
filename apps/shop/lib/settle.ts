@@ -1,5 +1,5 @@
 // #region settle
-import Settle from "settle-pay";
+import Settle from "@akhr2405/settle-pay";
 
 export const settle = () =>
   new Settle({

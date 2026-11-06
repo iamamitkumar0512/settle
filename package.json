@@ -10,7 +10,7 @@
   "packageManager": "pnpm@9.15.9",
   "scripts": {
     "dev": "pnpm --filter @settle/web dev",
-    "dev:store": "pnpm --filter settle-pay build && pnpm --filter chai-point dev",
+    "dev:store": "pnpm --filter chai-point dev",
     "build": "pnpm --filter @settle/web build",
     "build:store": "pnpm --filter chai-point build",
     "agent:wallet": "pnpm --filter restock-agent wallet",

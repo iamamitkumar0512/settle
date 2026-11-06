@@ -5,7 +5,7 @@ store's catalog, decides what to reorder, and pays in USDT over x402. Nobody app
 its wallet holds no WBT.
 
 It uses the standard `@x402/fetch` client. Nothing here is specific to Settle, so any x402 agent can
-buy from any store built on [`settle-pay`](../../packages/sdk).
+buy from any store built on [`@akhr2405/settle-pay`](../../packages/sdk).
 
 ## Run it
 

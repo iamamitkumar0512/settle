@@ -36,7 +36,7 @@ export default function StorePage() {
           How this store takes payment
         </h2>
         <p>
-          Chai Point is a separate website that installed <code>settle-pay</code>. These{" "}
+          Chai Point is a separate website that installed <code>@akhr2405/settle-pay</code>. These{" "}
           <strong>{lineCount} lines</strong> take a payment, and {webhookLineCount} more get it told
           by webhook. They are read from its own source files when the site is built. Every order
           lands in the merchant&apos;s Settle dashboard, where it can be refunded and exported.

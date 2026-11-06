@@ -1,8 +1,10 @@
 {
-  "name": "settle-pay",
+  "name": "@akhr2405/settle-pay",
   "version": "0.1.0",
   "description": "Take USDT on Whitechain the way you would take cards with a payment gateway: orders, checkout, verify, refunds. Your customer needs no wallet and no gas.",
   "license": "MIT",
+  "homepage": "https://settle-usdt.vercel.app/docs",
+  "bugs": "https://github.com/iamamitkumar0512/settle/issues",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -31,7 +33,9 @@
     "usdt",
     "stablecoin",
     "whitechain",
-    "gasless"
+    "gasless",
+    "x402",
+    "ai-agents"
   ],
   "repository": {
     "type": "git",
@@ -52,5 +56,8 @@
     "tsup": "^8.5.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

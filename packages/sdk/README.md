@@ -1,4 +1,4 @@
-# settle-pay
+# @akhr2405/settle-pay
 
 Take USDT on Whitechain from your own store, the way you take cards with Razorpay or Stripe. Your
 server creates an order, Settle Checkout opens over your page, and your server verifies the
@@ -7,27 +7,30 @@ payment. Your customer pays with an email address and needs no wallet and no gas
 The money goes straight from your customer to your account. Settle adds no fee. A small network
 fee repays the gas, and it is the same whatever the order's amount.
 
+[Guide](https://settle-usdt.vercel.app/docs) · [Live demo store](https://chai-point-store.vercel.app) ·
+[Source](https://github.com/iamamitkumar0512/settle)
+
 ## Install
 
 ```bash
-npm install settle-pay
+npm install @akhr2405/settle-pay
 ```
 
-Your keys are on the Developers page of your Settle account. The Key Secret can move your money,
-like a card gateway's secret key, so keep it on your server and use one Settle account per store.
+Your keys are on the Developers page of your [Settle account](https://settle-usdt.vercel.app/developers).
+The Key Secret can move your money, like a card gateway's secret key, so keep it on your server and
+use one Settle account per store.
 
 ## Take a payment
 
 **1. On your server, create the order.**
 
 ```js
-import Settle from "settle-pay";
+import Settle from "@akhr2405/settle-pay";
 
 const settle = new Settle({
   keyId: process.env.SETTLE_KEY_ID,
   keySecret: process.env.SETTLE_KEY_SECRET,
   businessName: "Chai Point",
-  baseUrl: "https://<your Settle>", // or set SETTLE_BASE_URL
 });
 
 app.post("/orders", async (req, res) => {
@@ -44,7 +47,7 @@ app.post("/orders", async (req, res) => {
 **2. In the browser, open checkout from a click.**
 
 ```html
-<script src="https://<your Settle>/checkout.js"></script>
+<script src="https://settle-usdt.vercel.app/checkout.js"></script>
 <script>
   buy.onclick = () =>
     new Settle.Checkout({
@@ -183,7 +186,7 @@ A failed call throws `SettleError`. `message` says what went wrong and `code` is
 branch on it.
 
 ```js
-import { SettleError } from "settle-pay";
+import { SettleError } from "@akhr2405/settle-pay";
 
 try {
   await settle.payments.verify(response);
@@ -207,20 +210,16 @@ try {
 ## Use from CommonJS
 
 ```js
-const Settle = require("settle-pay");
+const Settle = require("@akhr2405/settle-pay");
 ```
 
 Node 20 or later. The SDK refuses to run in a browser, so your secret can't end up in one.
 
-## Try it
+## See it working
 
-```bash
-SETTLE_BASE_URL=https://<your Settle> SETTLE_KEY_ID=0x... SETTLE_KEY_SECRET=... pnpm --filter settle-pay example
-```
+[Chai Point](https://chai-point-store.vercel.app) is a separate store that installs this package from
+npm. It takes a payment in 22 lines of Settle code and gets webhooks in 6 more, and its page prints
+those lines. Its source is in [`apps/shop`](https://github.com/iamamitkumar0512/settle/tree/main/apps/shop).
 
-It creates an order for 1.00 USDT, waits for you to pay it, refunds 0.40 and prints each step. If
-`apps/shop/.env` is filled in, it reuses those settings and the command is just
-`pnpm --filter settle-pay example`.
-
-[`apps/shop`](../../apps/shop) is a complete store built on this package, in 22 lines of Settle code
-and 6 more for webhooks.
+To run the same calls from a terminal, see
+[`examples/quickstart.ts`](https://github.com/iamamitkumar0512/settle/blob/main/packages/sdk/examples/quickstart.ts).

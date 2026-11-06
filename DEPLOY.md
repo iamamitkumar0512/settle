@@ -6,7 +6,7 @@ Three things go live. The contracts are already deployed and verified, so nothin
 |---|---|---|
 | The Settle app | Vercel project 1 | `apps/web` |
 | The demo store, Chai Point | Vercel project 2 | `apps/shop` |
-| The SDK, `settle-pay` | npm | `packages/sdk` |
+| The SDK, `@akhr2405/settle-pay` | npm | `packages/sdk` |
 
 These steps have not been run yet, so treat the first deploy as a test. Allow about an hour.
 
@@ -23,7 +23,7 @@ Only you can do these, because they need your accounts, keys or funds.
 | 5 | WBT in the relayer wallet, 0.2 or more | It pays the gas for every relayed action. |
 | 6 | Test USDT in the relayer wallet, about 40 | It funds the "Add test USDT" button for new accounts. |
 | 7 | A second Settle account, made with an email used only for the store | Its keys go into the store. |
-| 8 | An npm account | To publish `settle-pay`. Optional, but the docs tell developers to install it. |
+| 8 | An npm account | To publish `@akhr2405/settle-pay`. Optional, but the docs tell developers to install it. |
 | 9 | A Swarm postage batch, from the Swarm booth | Optional. Needed for the Swarm bonus. |
 | 10 | An `ANTHROPIC_API_KEY` | Optional. The restock agent's AI, for the video. The live check doesn't need it. |
 | 11 | A domain verified in Resend | Optional. Without it, emails only reach your own Resend address, and "Email it from Settle" tells a merchant it is in test mode. The mail app and copy options still work. |
@@ -105,11 +105,11 @@ npm publish
 3. Check that it is there:
 
 ```bash
-npm view settle-pay version
+npm view @akhr2405/settle-pay version
 ```
 
-If you skip this step, everything still works, because the store builds the SDK from this repo.
-Only the line `npm install settle-pay` in the docs would fail for an outside developer.
+Do this before deploying the store: it installs `@akhr2405/settle-pay` from npm like any other website, so
+its build fails until the package is published.
 
 ## Step 5: Deploy the demo store
 
@@ -170,8 +170,8 @@ If it doesn't pass, leave x402 out of the video and README rather than show it h
 
 ## Step 8: Run it live and collect proof
 
-Use the deployed app as a merchant and a customer. While you do, save these explorer links.
-The README's proof table has the first three kinds already and none of the rest.
+Use the deployed app as a merchant and a customer. While you do, save these explorer links for
+the README's proof table.
 
 | Action | Where the link appears |
 |---|---|
@@ -181,8 +181,6 @@ The README's proof table has the first three kinds already and none of the rest.
 | A subscription cancelled | The same list |
 | A withdrawal with no gas | The "Sent." line on the Account page |
 | A sale to an AI agent | The proof line at the end of `pnpm agent:start` |
-
-Give me the links and I will add them to the README.
 
 ## Step 9: Finish the submission
 

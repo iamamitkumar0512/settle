@@ -21,7 +21,7 @@ export type SettleOptions = {
   keySecret: string;
   /** The name your customer sees at checkout. */
   businessName?: string;
-  /** Where Settle runs. Or set SETTLE_BASE_URL. */
+  /** Where Settle runs, if not the hosted one. Or set SETTLE_BASE_URL. */
   baseUrl?: string;
   rpcUrl?: string;
   chainId?: number;

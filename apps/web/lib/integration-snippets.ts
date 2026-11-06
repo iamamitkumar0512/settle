@@ -1,7 +1,7 @@
 // The code a store copies. The Developers page fills in the merchant's own key; the public
 // guide shows where it goes.
 export function serverCode(keyId: string, site: string) {
-  return `import Settle from "settle-pay";
+  return `import Settle from "@akhr2405/settle-pay";
 
 const settle = new Settle({
   keyId: ${keyId},

@@ -96,7 +96,7 @@ export function DevelopersPanel() {
         <h2 className="display text-xl">Add Settle to your website</h2>
         <div className="flex flex-col gap-2">
           <h3 className="font-semibold">1. Install</h3>
-          <CodeBlock code="npm install settle-pay" label="Copy command" />
+          <CodeBlock code="npm install @akhr2405/settle-pay" label="Copy command" />
         </div>
         <div className="flex flex-col gap-2 border-t border-line pt-4">
           <h3 className="font-semibold">2. On your server</h3>

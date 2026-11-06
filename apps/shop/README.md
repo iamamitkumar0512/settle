@@ -1,7 +1,7 @@
 # Chai Point
 
 A sample store that takes USDT through Settle. It shows what any website does to accept payment:
-install [`settle-pay`](../../packages/sdk), add a few lines, and let Settle Checkout do the rest. The
+install [`@akhr2405/settle-pay`](../../packages/sdk), add a few lines, and let Settle Checkout do the rest. The
 store has no features of its own that Settle lacks. Its orders land in the merchant's Settle app,
 where they can be refunded and exported.
 

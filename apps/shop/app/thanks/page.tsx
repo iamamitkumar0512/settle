@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { CheckoutResponse } from "settle-pay";
+import type { CheckoutResponse } from "@akhr2405/settle-pay";
 import { settle } from "@/lib/settle";
 
 type Props = { searchParams: Promise<CheckoutResponse> };

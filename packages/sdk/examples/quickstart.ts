@@ -2,7 +2,7 @@
 // the SDK, so it is a quick way to check one works against your Settle.
 //
 //   SETTLE_BASE_URL=https://<your Settle> SETTLE_KEY_ID=0x... SETTLE_KEY_SECRET=... \
-//     pnpm --filter settle-pay example
+//     pnpm --filter @akhr2405/settle-pay example
 //
 // If the demo store is set up, it reuses apps/shop/.env and needs no settings at all. Anything
 // set in the shell wins over that file.
