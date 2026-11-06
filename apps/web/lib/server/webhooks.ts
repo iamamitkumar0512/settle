@@ -2,9 +2,19 @@ import "server-only";
 import { createHmac, randomBytes } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { BlockList, isIP } from "node:net";
-import { formatUnits, isHash, parseEventLogs, type Address, type Hash } from "viem";
-import { registry, USDT_DECIMALS } from "@/lib/contracts";
 import {
+  formatUnits,
+  isHash,
+  parseAbi,
+  parseEventLogs,
+  type Address,
+  type Hash,
+  type TransactionReceipt,
+} from "viem";
+import { registry, USDT_ADDRESS, USDT_DECIMALS } from "@/lib/contracts";
+import { explorerTxUrl } from "@/lib/format";
+import {
+  readAgentSaleByNonce,
   readInvoiceContact,
   readWebhook,
   webhookWasDelivered,
@@ -87,6 +97,56 @@ function eventId(hash: Hash, logIndex: number) {
 
 type MerchantEvent = { merchant: Address; orderId: bigint; event: WebhookEvent };
 
+const tokenEvents = parseAbi([
+  "event AuthorizationUsed(address indexed authorizer, bytes32 indexed nonce)",
+  "event Transfer(address indexed from, address indexed to, uint256 value)",
+]);
+
+// A sale to an agent, confirmed from the token's own events. A saved sale alone isn't enough: the
+// transaction must really have moved that amount from that agent to that merchant.
+async function agentSaleEvents(receipt: TransactionReceipt, created: string) {
+  const logs = parseEventLogs({
+    abi: tokenEvents,
+    logs: receipt.logs.filter(
+      ({ address }) => address.toLowerCase() === USDT_ADDRESS.toLowerCase(),
+    ),
+  });
+  const events: MerchantEvent[] = [];
+  for (const log of logs) {
+    if (log.eventName !== "AuthorizationUsed") continue;
+    const sale = await readAgentSaleByNonce(log.args.nonce).catch(() => null);
+    if (!sale) continue;
+    const moved = logs.some(
+      (other) =>
+        other.eventName === "Transfer" &&
+        other.args.from.toLowerCase() === sale.payer.toLowerCase() &&
+        other.args.to.toLowerCase() === sale.merchant.toLowerCase() &&
+        other.args.value === sale.amount,
+    );
+    if (!moved) continue;
+    const hash = receipt.transactionHash;
+    const data = {
+      orderId: "",
+      amount: decimal(sale.amount),
+      currency: "USDT",
+      receipt: sale.receipt,
+      description: sale.description,
+      payer: sale.payer,
+      receiptUrl: explorerTxUrl(hash),
+      paymentId: hash,
+      received: decimal(sale.amount - sale.networkFee),
+      networkFee: decimal(sale.networkFee),
+      agent: true,
+    };
+    events.push({
+      merchant: sale.merchant,
+      orderId: 0n,
+      event: { id: eventId(hash, log.logIndex), created, type: "order.paid", data },
+    });
+  }
+  return events;
+}
+
 // The events a transaction caused, built from the chain alone. Nothing a caller says can invent
 // one, so any route may ask for a transaction to be announced.
 async function transactionEvents(hash: Hash, origin: string): Promise<MerchantEvent[]> {
@@ -100,6 +160,9 @@ async function transactionEvents(hash: Hash, origin: string): Promise<MerchantEv
   });
   const block = await chainClient.getBlock({ blockHash: receipt.blockHash });
   const created = new Date(Number(block.timestamp) * 1000).toISOString();
+
+  // Nothing in it touched an invoice, so it can only be a sale to an agent.
+  if (logs.length === 0) return agentSaleEvents(receipt, created);
 
   const events: MerchantEvent[] = [];
   for (const log of logs) {

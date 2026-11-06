@@ -71,7 +71,7 @@ function Deliveries({
                 <span className={`pill ${delivery.delivered ? "tone-paid" : "tone-late"}`}>
                   {deliveryLabel(delivery)}
                 </span>
-                {!reached.has(delivery.eventId) && delivery.orderId !== "0" && (
+                {!reached.has(delivery.eventId) && delivery.eventType !== "webhook.test" && (
                   <button
                     type="button"
                     className="btn"
