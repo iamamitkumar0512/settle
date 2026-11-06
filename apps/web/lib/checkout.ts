@@ -14,6 +14,12 @@ export function isValidCallbackUrl(text: string) {
   return url.username === "" && url.password === "";
 }
 
+// The store page that opened checkout in a popup. Its address comes from the popup's own link,
+// so it only decides who gets told about the payment, and what they are told is public anyway.
+export function checkoutOpenerOrigin(origin: string | null) {
+  return origin && isValidCallbackUrl(origin) ? new URL(origin).origin : null;
+}
+
 // The store's page with the order and its payment added, the way a store expects them back.
 // The payment id is the transaction that paid the order. It is only known right after paying.
 export function storeReturnUrl(callbackUrl: string, orderId: bigint, paymentId?: Hash) {

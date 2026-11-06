@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Plain scripts that run on other people's sites, not Next.js code.
+    "public/**",
   ]),
 ]);
 

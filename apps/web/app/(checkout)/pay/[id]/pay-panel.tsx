@@ -14,7 +14,7 @@ import { Message } from "@/components/message";
 import { SwitchNetwork } from "@/components/switch-network";
 import { invoiceCalendarFile } from "@/lib/calendar";
 import { whitechainSepolia } from "@/lib/chains";
-import { storeReturnUrl } from "@/lib/checkout";
+import { checkoutOpenerOrigin, storeReturnUrl } from "@/lib/checkout";
 import { registry, usdtAbi, USDT_ADDRESS } from "@/lib/contracts";
 import { explorerTxUrl, formatDate, formatUsdt, shortAddress } from "@/lib/format";
 import { InvoiceStatus, type Invoice } from "@/lib/invoice";
@@ -23,6 +23,7 @@ import { postJson, splitSignature } from "@/lib/relay-client";
 import { paymentAuthorization } from "@/lib/typed-data";
 import { useInvoice } from "@/lib/use-invoice";
 import { useInvoiceDetails } from "@/lib/use-invoice-details";
+import { useInvoiceRecords } from "@/lib/use-invoice-records";
 import { useNow } from "@/lib/use-now";
 import { useRelayQuote } from "@/lib/use-relay-quote";
 import { useSession } from "@/lib/use-session";
@@ -46,16 +47,34 @@ type PayProps = {
 };
 
 const RETURN_AFTER_MS = 3000;
+const CLOSE_AFTER_MS = 1500;
 
-function Shell({ children, aside }: { children: React.ReactNode; aside: React.ReactNode }) {
+type StoreWindow = { window: Window; origin: string };
+
+function Shell({
+  children,
+  aside,
+  compact,
+}: {
+  children: React.ReactNode;
+  aside: React.ReactNode;
+  // Checkout's small window, which must show the pay button without scrolling.
+  compact?: boolean;
+}) {
   return (
-    <main className="mx-auto grid w-full max-w-[1040px] flex-1 content-center items-center gap-10 px-4 py-10 md:grid-cols-[minmax(0,1fr)_420px] md:gap-14 md:px-8">
+    <main
+      className={
+        compact
+          ? "mx-auto flex w-full max-w-[480px] flex-1 flex-col gap-4 px-4 py-4"
+          : "mx-auto grid w-full max-w-[1040px] flex-1 content-center items-center gap-10 px-4 py-10 md:grid-cols-[minmax(0,1fr)_420px] md:gap-14 md:px-8"
+      }
+    >
       <section aria-label="Invoice" className="flex flex-col gap-6">
         {aside}
       </section>
       <section
         aria-label="Payment"
-        className="card flex min-h-[320px] flex-col justify-center gap-4 p-6"
+        className={`card flex flex-col justify-center gap-4 ${compact ? "p-5" : "min-h-[320px] p-6"}`}
       >
         {children}
       </section>
@@ -65,10 +84,12 @@ function Shell({ children, aside }: { children: React.ReactNode; aside: React.Re
 
 // Saves the due date to the customer's own calendar, which then reminds them by itself.
 function AddToCalendar({ invoice }: { invoice: Invoice }) {
-  const { data: details } = useInvoiceDetails(invoice.id);
+  const { data: details, isPending } = useInvoiceDetails(invoice.id);
   const linkKey = usePayLinkKey();
   const now = useNow(60_000);
 
+  // A store's order is paid at checkout, so there is nothing to remember.
+  if (isPending || details?.callbackUrl) return null;
   if (invoice.status !== InvoiceStatus.Open || invoice.dueAt <= now) return null;
 
   function download() {
@@ -98,6 +119,21 @@ function AddToCalendar({ invoice }: { invoice: Invoice }) {
     >
       Add to calendar
     </button>
+  );
+}
+
+// What checkout's small window shows: who is being paid, for what, and how much.
+function OrderSummary({ invoice }: { invoice: Invoice }) {
+  const { data: details } = useInvoiceDetails(invoice.id);
+
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <div className="min-w-0">
+        <div className="font-semibold">{details?.merchantName ?? `Order #${invoice.id}`}</div>
+        {details?.memo && <p className="text-[13px]/[18px] text-muted">{details.memo}</p>}
+      </div>
+      <div className="figure text-xl whitespace-nowrap">{formatUsdt(invoice.amount)} USDT</div>
+    </div>
   );
 }
 
@@ -141,7 +177,48 @@ function InvoiceSummary({ invoice }: { invoice: Invoice }) {
   );
 }
 
+// The store page that opened this one with checkout.js. Null on an ordinary visit, and when the
+// store's page is gone or its browser settings cut the link: those customers return by address.
+function useStoreWindow(): StoreWindow | null {
+  const params = useSearchParams();
+  const [store] = useState(() => {
+    const isPopup = params.get("popup") === "1";
+    const origin = isPopup ? checkoutOpenerOrigin(params.get("origin")) : null;
+    return origin && window.opener ? { window: window.opener as Window, origin } : null;
+  });
+  return store;
+}
+
+// Tells the store's page about the payment, then closes this window. An order paid earlier isn't
+// in this page's memory, so its payment comes from the chain.
+function ReportToStore({
+  invoice,
+  store,
+  payment,
+}: {
+  invoice: Invoice;
+  store: StoreWindow;
+  payment?: Hash;
+}) {
+  const records = useInvoiceRecords(invoice);
+  const paymentId = payment ?? records.data?.paid?.hash;
+
+  useEffect(() => {
+    if (!paymentId) return;
+    store.window.postMessage(
+      { type: "settle:paid", settle_order_id: String(invoice.id), settle_payment_id: paymentId },
+      store.origin,
+    );
+    const timer = setTimeout(() => window.close(), CLOSE_AFTER_MS);
+    return () => clearTimeout(timer);
+  }, [invoice.id, paymentId, store]);
+
+  return <p className="text-muted">Taking you back to {new URL(store.origin).host}…</p>;
+}
+
 function PaidCard({ invoice, payment }: { invoice: Invoice; payment?: Hash }) {
+  const opener = useStoreWindow();
+
   // A shop that sent the customer here can ask for a way back. Only a path on this site is
   // accepted, so a pay link can't be used to send anyone somewhere else.
   const requested = useSearchParams().get("return");
@@ -158,10 +235,10 @@ function PaidCard({ invoice, payment }: { invoice: Invoice; payment?: Hash }) {
   // Straight after paying, the customer is taken back without having to click. Someone who
   // opens an old pay link later only gets the button.
   useEffect(() => {
-    if (!payment || !storeHref) return;
+    if (opener || !payment || !storeHref) return;
     const timer = setTimeout(() => window.location.assign(storeHref), RETURN_AFTER_MS);
     return () => clearTimeout(timer);
-  }, [payment, storeHref]);
+  }, [opener, payment, storeHref]);
 
   return (
     <div className="flex flex-col items-center gap-3 text-center" role="status">
@@ -184,28 +261,34 @@ function PaidCard({ invoice, payment }: { invoice: Invoice; payment?: Hash }) {
       {invoice.refunded > 0n && (
         <p className="text-refund">{formatUsdt(invoice.refunded)} USDT refunded.</p>
       )}
-      {store && (
+      {opener ? (
+        <ReportToStore invoice={invoice} store={opener} payment={payment} />
+      ) : (
         <>
-          {payment && <p className="text-muted">Taking you back to {store.host}…</p>}
-          <a href={storeHref} className="btn btn-primary btn-wide">
-            Back to {store.host}
-          </a>
+          {store && (
+            <>
+              {payment && <p className="text-muted">Taking you back to {store.host}…</p>}
+              <a href={storeHref} className="btn btn-primary btn-wide">
+                Back to {store.host}
+              </a>
+            </>
+          )}
+          {returnPath && !store && (
+            <Link href={returnPath} className="btn btn-primary btn-wide">
+              Back to the shop
+            </Link>
+          )}
+          <Link
+            href={`/pay/${invoice.id}/receipt`}
+            className={`btn btn-wide ${returnPath || store ? "" : "btn-primary"}`}
+          >
+            View receipt
+          </Link>
+          <Link href="/pay" className="text-[13px]/[18px] text-accent-text">
+            See all your invoices
+          </Link>
         </>
       )}
-      {returnPath && !store && (
-        <Link href={returnPath} className="btn btn-primary btn-wide">
-          Back to the shop
-        </Link>
-      )}
-      <Link
-        href={`/pay/${invoice.id}/receipt`}
-        className={`btn btn-wide ${returnPath || store ? "" : "btn-primary"}`}
-      >
-        View receipt
-      </Link>
-      <Link href="/pay" className="text-[13px]/[18px] text-accent-text">
-        See all your invoices
-      </Link>
     </div>
   );
 }
@@ -472,6 +555,7 @@ export function PayPanel() {
   const { id, invoice, state, refetch } = useInvoice();
   const session = useSession();
   const [payment, setPayment] = useState<Hash>();
+  const compact = useSearchParams().get("popup") === "1";
 
   if (state === "notFound") {
     return <Message title="Invoice not found" text="Check the link and try again." />;
@@ -496,18 +580,22 @@ export function PayPanel() {
     );
   }
 
-  const summary = <InvoiceSummary invoice={invoice} />;
+  const summary = compact ? (
+    <OrderSummary invoice={invoice} />
+  ) : (
+    <InvoiceSummary invoice={invoice} />
+  );
 
   if (invoice.status !== InvoiceStatus.Open) {
     return (
-      <Shell aside={summary}>
+      <Shell aside={summary} compact={compact}>
         <PaidCard invoice={invoice} payment={payment} />
       </Shell>
     );
   }
 
   return (
-    <Shell aside={summary}>
+    <Shell aside={summary} compact={compact}>
       {session.status === "loading" ? (
         <p className="text-center text-muted">Loading…</p>
       ) : session.status === "signedOut" ? (
