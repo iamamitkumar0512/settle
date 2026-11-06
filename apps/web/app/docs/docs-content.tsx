@@ -4,6 +4,8 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { CodeBlock } from "@/components/code-block";
 import {
+  AGENT_CLIENT_CODE,
+  AGENT_SERVER_CODE,
   browserCode,
   REFUND_CODE,
   serverCode,
@@ -18,6 +20,7 @@ const STEPS = [
   { id: "checkout", title: "Open checkout" },
   { id: "verify", title: "Verify the payment" },
   { id: "webhooks", title: "Webhooks" },
+  { id: "agents", title: "Sell to AI agents" },
   { id: "more", title: "Refunds and links" },
   { id: "reference", title: "Reference" },
 ];
@@ -44,6 +47,7 @@ const CALLS = [
   ["payments.verify(response)", "Confirms a payment against Whitechain."],
   ["refunds.create({ orderId, amount })", "Refunds in part, or in full with no amount."],
   ["paymentLinks.create(link)", "An invoice with a due date and a link to share."],
+  ["agents.charge(request, price)", "Puts a price on a route, so AI agents can buy over x402."],
   ["webhooks.verify(body, signature, secret)", "Checks a webhook came from Settle."],
   ["account.balance()", "This account's USDT."],
   ["account.withdraw({ to, amount })", "Sends USDT to any address, with no gas."],
@@ -198,6 +202,35 @@ export function DocsContent({ demoStore }: { demoStore?: string }) {
           </p>
           <CodeBlock code={WEBHOOK_CODE} label="Copy webhook code" />
           <Table caption="Webhook events" head={["Event", "Sent when", "Its data holds"]} rows={EVENTS} />
+        </Section>
+
+        <Section id="agents" title="Sell to AI agents">
+          <p className="text-muted">
+            Agents can buy from you too, with no checkout page. Put a price on a route: an agent that
+            calls it gets a 402 with the price, pays over x402, and repeats the request. It needs no
+            account, no API key and no gas, and any standard x402 client works.
+          </p>
+          <CodeBlock code={AGENT_SERVER_CODE} label="Copy server code" />
+          <CodeBlock code={AGENT_CLIENT_CODE} label="Copy agent code" />
+          <ul className="flex list-disc flex-col gap-1.5 pl-5 text-muted">
+            <li>
+              Each order lands in your dashboard under Agent sales, in your CSV export, and at your
+              webhook as <code className="figure text-ink">order.paid</code> with{" "}
+              <code className="figure text-ink">agent: true</code>.
+            </li>
+            <li>
+              Build the order number from an id the agent sends. A retry with the same id gets the
+              same order back and is never charged twice.
+            </li>
+            <li>The network fee comes out of the sale, in the same transaction.</li>
+            <li>
+              An agent pays you directly, so its order has no refund button. To refund one, send the
+              money back from your Account page.
+            </li>
+            <li>
+              The cap above is per payment. An agent&apos;s total budget is what its wallet holds.
+            </li>
+          </ul>
         </Section>
 
         <Section id="more" title="Refunds and payment links">

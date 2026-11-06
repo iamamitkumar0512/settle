@@ -88,7 +88,7 @@ export default function Home() {
 
         <section className="border-t border-line px-4 py-16 md:px-8 md:py-[72px]">
           <div className="mx-auto max-w-[1176px]">
-            <h2 className="display mb-8 text-[28px]/9 md:text-4xl/11">Two ways to get paid</h2>
+            <h2 className="display mb-8 text-[28px]/9 md:text-4xl/11">Three ways to get paid</h2>
             <div className="grid gap-6 md:grid-cols-2">
               <article className="card flex min-w-0 flex-col gap-4 p-6">
                 <h3 className="display text-xl">On your website</h3>
@@ -134,6 +134,30 @@ export default function Home() {
                 <div className="mt-auto">
                   <Link href="/dashboard/new" className="btn btn-primary">
                     Create an invoice
+                  </Link>
+                </div>
+              </article>
+              <article className="card flex min-w-0 flex-col gap-4 p-6 md:col-span-2">
+                <h3 className="display text-xl">From AI agents</h3>
+                <p className="text-muted">
+                  Put a price on one route, and an AI agent can buy from you with no account, no API
+                  key and no gas. It pays over x402, and you get a normal order.
+                </p>
+                <ol className="grid gap-3 md:grid-cols-3">
+                  {[
+                    "An agent asks to buy and gets your price",
+                    "It pays in USDT, within the limit its owner set",
+                    "The order lands in your dashboard and webhook",
+                  ].map((step, index) => (
+                    <li key={step} className="well flex items-center gap-3">
+                      <span className="figure text-muted">0{index + 1}</span>
+                      {step}
+                    </li>
+                  ))}
+                </ol>
+                <div>
+                  <Link href="/docs#agents" className="btn">
+                    See how it works
                   </Link>
                 </div>
               </article>

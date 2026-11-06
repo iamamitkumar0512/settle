@@ -70,3 +70,39 @@ const link = await settle.paymentLinks.create({
   customer: "ops@acme.example",
 });
 console.log(link.url);`;
+
+export const AGENT_SERVER_CODE = `// One route, and agents can buy from you. They need no account, no API key and no gas.
+export async function POST(request) {
+  const { product, quantity, requestId } = await request.json();
+
+  const sale = await settle.agents.charge(request, {
+    amount: priceOf(product, quantity),
+    description: \`\${quantity} x \${product}\`,
+    // The agent's own id for this order, so a retry is never charged twice.
+    receipt: \`order-\${requestId}\`,
+  });
+  // No payment yet: this is the 402 with your price.
+  if (!sale.paid) return sale.response;
+
+  return sale.respond({ order: sale.receipt, proof: sale.proofUrl });
+}`;
+
+export const AGENT_CLIENT_CODE = `// Any standard x402 client can buy. This is Coinbase's, with a limit on each payment.
+import { wrapFetchWithPaymentFromConfig } from "@x402/fetch";
+import { ExactEvmScheme } from "@x402/evm";
+
+const pay = wrapFetchWithPaymentFromConfig(fetch, {
+  schemes: [{ network: "eip155:1874", client: new ExactEvmScheme(account) }],
+  spendControls: {
+    allowedAssets: [{
+      network: "eip155:1874",
+      asset: "0xcedfB56113143d55b2358b8CFbB0dEB5Ad2f55a7",
+      maxAmountPerPayment: "5000000", // 5.00 USDT
+    }],
+  },
+});
+
+await pay("https://your-store.example/api/agent/buy", {
+  method: "POST",
+  body: JSON.stringify({ product: "masala", quantity: 3, requestId: crypto.randomUUID() }),
+});`;

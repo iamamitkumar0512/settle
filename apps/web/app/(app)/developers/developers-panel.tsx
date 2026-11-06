@@ -5,7 +5,13 @@ import Link from "next/link";
 import { useState } from "react";
 import type { Address } from "viem";
 import { CodeBlock, CopyButton } from "@/components/code-block";
-import { browserCode, serverCode, WEBHOOK_CODE } from "@/lib/integration-snippets";
+import {
+  AGENT_CLIENT_CODE,
+  AGENT_SERVER_CODE,
+  browserCode,
+  serverCode,
+  WEBHOOK_CODE,
+} from "@/lib/integration-snippets";
 import { useSession } from "@/lib/use-session";
 import { useSiteOrigin } from "@/lib/use-site-origin";
 import { WebhookSettings } from "./webhook-settings";
@@ -115,6 +121,25 @@ export function DevelopersPanel() {
       </section>
 
       <WebhookSettings address={address} />
+
+      <section aria-label="Sell to AI agents" className="card flex flex-col gap-4 p-5">
+        <div>
+          <h2 className="display text-xl">Sell to AI agents</h2>
+          <p className="text-[13px]/[18px] text-muted">
+            Put a price on one route, and an AI agent can buy from you over x402 with no account and
+            no API key. The network fee comes out of the sale, and each order lands on your Invoices
+            page and at your webhook like any other.
+          </p>
+        </div>
+        <div className="flex flex-col gap-2">
+          <h3 className="font-semibold">On your server</h3>
+          <CodeBlock code={AGENT_SERVER_CODE} label="Copy server code" />
+        </div>
+        <div className="flex flex-col gap-2 border-t border-line pt-4">
+          <h3 className="font-semibold">What the agent runs</h3>
+          <CodeBlock code={AGENT_CLIENT_CODE} label="Copy agent code" />
+        </div>
+      </section>
 
       <section aria-label="Your website's payments" className="card flex flex-col gap-2 p-5">
         <h2 className="display text-xl">Where payments show up</h2>
