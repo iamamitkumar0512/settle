@@ -16,7 +16,7 @@ Only you can do these, because they need your accounts, keys or funds.
 
 | # | What | Why |
 |---|---|---|
-| 1 | Commit and push `main` | Vercel builds from GitHub. |
+| 1 | Commit and push `main`, then make the repo public | Vercel builds from GitHub, and ETHGlobal requires a public repo. |
 | 2 | A Vercel account connected to the GitHub repo | Hosts both projects. The free plan is enough. |
 | 3 | The values in your local `apps/web/.env` | They become the app's settings on Vercel. |
 | 4 | Access to the Privy dashboard | To allow the deployed address, and to allow wallet export. |
@@ -46,7 +46,7 @@ Add these settings before the first build.
 
 | Variable | Needed | Value |
 |---|---|---|
-| `PRIVY_APP_ID` | Yes | Same as local. |
+| `PRIVY_APP_ID` | Yes | Same as local. The build fails without a valid one. |
 | `RELAYER_PK` | Yes | Same as local. |
 | `ARKIV_ACCESS_KEY` | Yes | Same as local. |
 | `ARKIV_PRIVATE_KEY` | Yes | Same as local. |
@@ -57,7 +57,7 @@ Add these settings before the first build.
 | `SWARM_BEE_URL`, `SWARM_BATCH_ID` | Optional | PDF invoices. The upload field is hidden without both. |
 | `RESEND_API_KEY` | Optional | Reminder emails. |
 | `REMINDER_FROM` | Optional | A sender on your verified Resend domain, for example `Settle <hello@yourdomain.com>`. Needed before reminders reach customers. |
-| `NEXT_PUBLIC_RPC_URL` | Optional | Browser RPC. Anything here is visible to visitors. |
+| `NEXT_PUBLIC_RPC_URL` | Leave it out | Without it, browsers use the public RPC. Anything here is visible to visitors, including a key inside the address. |
 
 To make a `CRON_SECRET`:
 
@@ -88,7 +88,7 @@ Deploy, and note the address Vercel gives you. It is called `<app>` below.
 | `<app>/docs` | The public guide. |
 
 Then log in with an email, create an invoice for 1 USDT, and pay it from a private window with
-another email. This is Parts 2 and 3 of [`TESTING.md`](TESTING.md).
+another email.
 
 ## Step 4: Publish the SDK
 
@@ -166,20 +166,19 @@ makes one real purchase of 1.25 USDT, and it should end with `EVERYTHING PASSED`
 pnpm agent:check
 ```
 
-If this doesn't pass by 03:00 on Saturday, leave x402 out of the video and README rather than show
-it half working. Part 14 of [`TESTING.md`](TESTING.md) says what each line means.
+If it doesn't pass, leave x402 out of the video and README rather than show it half working.
 
 ## Step 8: Run it live and collect proof
 
-Follow [`TESTING.md`](TESTING.md) on the deployed app. While you do, save these explorer links.
+Use the deployed app as a merchant and a customer. While you do, save these explorer links.
 The README's proof table has the first three kinds already and none of the rest.
 
 | Action | Where the link appears |
 |---|---|
-| A store order paid through checkout | The receipt's "Proof on Whitechain" |
-| A subscription started | The explorer, from the customer's address |
-| A subscription payment collected | The explorer, from the relayer's address |
-| A subscription cancelled | The explorer, from the relayer's address |
+| A store order paid through checkout | The receipt's "Public proof" |
+| A subscription started | **History and proof** on the customer's Payments page |
+| A subscription payment collected | The same list |
+| A subscription cancelled | The same list |
 | A withdrawal with no gas | The "Sent." line on the Account page |
 | A sale to an AI agent | The proof line at the end of `pnpm agent:start` |
 
@@ -201,8 +200,8 @@ Arkiv as partners. Aim for 08:30, not 08:59.
 ## Things to know
 
 - **Daily jobs.** `apps/web/vercel.json` runs `/api/cron/charge` at 06:00 UTC and
-  `/api/cron/reminders` at 07:00 UTC. Once a day is as often as Vercel's free plan allows. A plan
-  billed more often is collected late unless its merchant presses **Collect now**.
+  `/api/cron/reminders` at 07:00 UTC. Once a day is as often as Vercel's free plan allows. Between
+  runs, a due subscription payment is collected whenever its merchant or customer has the app open.
 - **Several copies of the server.** Vercel can run more than one. The relayer sends again if two
   copies pick the same transaction number. Rate limits and the once-a-day test money are counted
   inside each copy, so they are looser than they look.

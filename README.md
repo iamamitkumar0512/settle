@@ -4,7 +4,6 @@ Settle is the payment gateway for USDT on Whitechain. A store adds it to its web
 would add a card gateway, and anyone else can create an invoice or a subscription plan in the app.
 Either way the customer pays with an email address, and needs no wallet and no gas.
 
-<!-- Amit: add the two links, and remove this comment. -->
 **Live app:** [ADD DEPLOYED URL] · **Demo video:** [ADD VIDEO LINK]
 
 > **Status:** built for ETHGlobal Mumbai 2026. All three contracts are live and verified on
@@ -144,8 +143,18 @@ can't be replayed or used on another invoice.
 
 A merchant publishes a plan: an amount and a period. A customer subscribes with two signatures. One
 is a USDT permit, which gives the contract an allowance. The other names the plan and caps the
-number of payments. The first payment is taken at once. After that anyone can collect a payment
-once it is due, so Settle's relayer does, and the customer or the merchant can cancel at any time.
+number of payments. The first payment is taken at once, and the customer or the merchant can
+cancel at any time.
+
+After that, anyone can collect a payment once it is due, because the contract checks the date and
+the plan's fee repays the gas. So Settle collects it as soon as the merchant or the customer has the
+app open, and a daily job collects whatever nobody was there to see. A customer who is short of USDT
+isn't charged: both sides see the payment as due and why it failed, and it is tried again.
+
+Every payment counts towards the merchant's totals and CSV. An ended subscription stays listed,
+and each step links to its transaction. Settle's relayer sends those transactions, so they aren't
+in the customer's or merchant's own list on the explorer. A cancel moves no money, so it appears
+only on Settle's history and on the explorer's transaction page.
 
 The second signature matters. A permit is only an allowance, so without it, anyone who saw one
 could attach it to a plan of their own.
@@ -193,9 +202,10 @@ balance, and it stops relaying below 0.005 WBT.
 
 The contract holds the money and status. Arkiv holds each invoice's business name and description,
 plus encrypted customer details that only the merchant can read. It also holds each subscription
-plan's name and description, each merchant's encrypted webhook settings, and a delivery log that
-Arkiv drops after 7 days. A customer finds their invoices by the email or wallet address they were
-sent to. Details are in [`arkiv/schema.md`](arkiv/schema.md).
+plan's name and description, each merchant's encrypted webhook settings, each sale to an AI agent,
+and a delivery log that Arkiv drops after 7 days. A customer finds their invoices by the email or
+wallet address they were sent to. Details are in [`arkiv/schema.md`](arkiv/schema.md), and
+[`TESTING.md`](TESTING.md) shows it all working in about five minutes.
 
 - **Network:** Arkiv Rabdi testnet, chain `7794095`
 - **Wallet that writes entities:** `0x7d404608B53998044fDDf5d07f6da8092d155278`
@@ -209,9 +219,9 @@ pnpm install
 ARKIV_ACCESS_KEY=<your key> node apps/web/scripts/arkiv-query.mjs
 ```
 
-This lists the invoice records on the live contract, any subscription plans, and recent webhook
-deliveries with the days each has left before Arkiv drops it. To see sample records from a test
-deployment, add its address: `0x0862eb825530db019ed13dbb1a1ef0c6567ba25e`.
+This lists the invoice records on the live contract, any subscription plans and sales to agents,
+and recent webhook deliveries with the days each has left before Arkiv drops it. To see sample
+records from a test deployment, add its address: `0x0862eb825530db019ed13dbb1a1ef0c6567ba25e`.
 
 The query filters on the writer wallet, because anyone can create entities with the same schema name.
 
@@ -337,8 +347,29 @@ keys from the app's Developers page. It runs on port 3100:
 pnpm dev:store
 ```
 
-To check every feature by hand, follow [`TESTING.md`](TESTING.md). To deploy both, see
-[`DEPLOY.md`](DEPLOY.md).
+To run the restock agent, see [`apps/agent`](apps/agent). To deploy, see [`DEPLOY.md`](DEPLOY.md).
+
+## How it was tested
+
+These ran on a local fork of Whitechain Sepolia with the real test USDT, against the real Arkiv
+testnet, using a scripted wallet in a real browser. Email login can't be scripted, so it was tested
+by hand.
+
+| What | Checks |
+|---|---|
+| Contracts | 132 |
+| The whole app through its screens | 49 |
+| Subscriptions, including renewals with nobody pressing anything | 15 |
+| The demo store with the app | 26 |
+| Settle Checkout, including blocked popups and fake messages | 29 |
+| The SDK installed outside this repo | 56 |
+| Webhooks, including failing servers and forgeries | 61 |
+| Agent payments through a real store | 20 |
+| The x402 facilitator, attacks on the relayer, races and webhooks | 24 |
+| A server killed after paying, an empty relayer, Arkiv failing, a slow log server | 18 |
+| Agent sales on every screen, on desktop and phone | 11 |
+
+To see the Arkiv side yourself, follow [`TESTING.md`](TESTING.md).
 
 ## Current limitations
 
@@ -347,8 +378,9 @@ To check every feature by hand, follow [`TESTING.md`](TESTING.md). To deploy bot
   proven in fork tests and in the app against a fork.
 - An invoice keeps the fee estimated when it was created, so the relayer can be repaid a little
   more or less than the gas it later spends.
-- Nobody has subscribed on the live chain yet. A wallet customer signs twice to subscribe. Due
-  payments are collected once a day, or when the merchant collects one from the Plans page.
+- Nobody has subscribed on the live chain yet. A wallet customer signs twice to subscribe. With
+  nobody on the app, a due payment waits for the daily job. There is no webhook for a subscription
+  payment yet, and a merchant sees a subscriber by address, not by name.
 - Automatic reminder emails need a mail provider's key and are off without one. They have only
   run against a stand-in for that provider. A wallet customer sees the in-app reminder only after
   signing in once, because invoices sent to a wallet are private. Calendar alerts depend on the
@@ -371,8 +403,7 @@ To check every feature by hand, follow [`TESTING.md`](TESTING.md). To deploy bot
   0.017 USDT of gas with no repayment. The daily cap limits this.
 - The test money button stands in for a card or bank payment. It is capped, and only exists on
   testnet.
-- A webhook is tried 3 times over a few seconds. After that the merchant resends it by hand. There
-  is no webhook for a subscription charge yet.
+- A webhook is tried 3 times over a few seconds. After that the merchant resends it by hand.
 - Encrypted customer details are stored on public Arkiv. This uses sample data on testnet and should
   move off Arkiv before real customers use it. See [`arkiv/why-arkiv.md`](arkiv/why-arkiv.md).
 - Arkiv records last about 182 days, and nothing renews them yet.
@@ -383,7 +414,7 @@ To check every feature by hand, follow [`TESTING.md`](TESTING.md). To deploy bot
 
 ## Tracks
 
-Whitechain Operate, Whitechain Scale, and Arkiv Build on Arkiv (from scratch).
+Whitechain Operate, Whitechain Scale, and Arkiv Build on Arkiv (from scratch) with the Swarm bonus.
 
 ## License
 

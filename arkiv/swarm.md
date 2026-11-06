@@ -66,7 +66,7 @@ ARKIV_ACCESS_KEY=<your key> node apps/web/scripts/arkiv-query.mjs 0x0d71cae59dc9
 
 - **Used in the test:** the public gateway `https://api.gateway.ethswarm.org` with the null stamp
   (a batch ID of 64 zeros). The gateway pays for storage, and we don't know how long it keeps files.
-- **Our own batch:** [ADD batch ID, and who bought it or gave it]
+- **Our own batch:** none yet, so the test above is the only upload we can stand behind.
 
 `SWARM_BEE_URL` and `SWARM_BATCH_ID` set the node and batch. See `apps/web/.env.example`.
 

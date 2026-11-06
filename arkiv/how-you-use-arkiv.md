@@ -2,14 +2,15 @@
 
 ## Do filters, edit rights and expiry fit what the app does?
 
-**Filters.** The app asks seven questions: "what are this invoice's details?", "what are this
+**Filters.** The app asks eight questions: "what are this invoice's details?", "what are this
 merchant's invoices?", "which invoices were sent to this customer?", "does this invoice have a
 PDF?", "what is this merchant's business name, and which of its invoices are store orders?",
-"where do this merchant's webhooks go?" and "what was delivered to it lately?" So `registry`,
-`invoice_id`, `merchant` and `customer_lookup` are indexed, and the webhook records add `saved_at`,
-`sent_at`, `event_id` and `delivered`. Encrypted columns
-can't be filtered, which is why the customer lookup is a separate keyed hash of the customer's
-email or wallet address. `due_at` is indexed but not used yet.
+"where do this merchant's webhooks go?", "what was delivered to it lately?" and "has this order
+number been sold to an agent?" So `registry`, `invoice_id`, `merchant` and `customer_lookup` are
+indexed. The webhook records add `saved_at`, `sent_at`, `event_id` and `delivered`, and agent sales
+add `receipt_lookup`, `payment_nonce` and `sold_at`. Encrypted columns can't be filtered, which is
+why the customer lookup and the order number lookup are separate keyed hashes. `due_at` is indexed
+but not used yet.
 
 **Sorting.** Webhook settings are never edited. Each save writes a new record and the app reads
 the newest with `orderBy(desc("saved_at"))`, so a locked record still supports a setting that

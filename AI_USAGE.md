@@ -5,8 +5,8 @@ Settle was built with Claude Code during ETHGlobal Mumbai 2026.
 - **Planning and design:** the build plan, architecture and UI design were developed with Claude.
 - **Code:** Claude Code wrote the contracts, tests, web app, scripts and documentation, working one
   step at a time from Amit Kumar's direction.
-- **Decisions and review:** Amit chose the product scope, reviewed each step, ran deployments and made
-  all commits.
+- **Decisions and review:** Amit chose the product scope, reviewed each step, ran deployments and
+  decided what was committed.
 - **Testing:** contract tests run against the real test USDT on a fork. Claude Code tested app
   flows on local forks with a scripted wallet in a headless browser, and with read-only checks
   against the live contract. It could not test email login, so Amit tested that, and ran the real

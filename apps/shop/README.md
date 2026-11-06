@@ -20,6 +20,10 @@ Webhooks are optional and take 6 more lines, in `app/api/webhooks/settle/route.t
 add this store's `/api/webhooks/settle` address on Settle's Developers page, and copy the signing
 secret into `SETTLE_WEBHOOK_SECRET`.
 
+AI agents can buy here too, in 7 more lines in `app/api/agent/buy/route.ts`. An agent reads
+`/api/agent/catalog`, which is free, then pays for its order over x402. See
+[`apps/agent`](../agent) for one that does.
+
 ## Run it
 
 1. Log in to Settle with the account the store is paid into, and open Developers.

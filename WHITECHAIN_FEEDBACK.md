@@ -43,7 +43,6 @@ pay with one signature and no gas.
    WBT price, and used the explorer's API for it.
 5. **Test USDT can't be minted by builders.** `mint` is owner-only and the owner is the bridge
    contract. On a fork we impersonate the owner.
-   <!-- Amit: add how you got test USDT on the live testnet, and whether it was easy. -->
 6. **"Partially verified" on the explorer.** All three contracts passed verification, but the explorer
    API reports `is_fully_verified: false`. We think this is because we compile without the metadata
    hash (`bytecode_hash = "none"`). The explorer doesn't say why a match is partial.

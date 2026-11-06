@@ -14,7 +14,6 @@ We haven't tested Settle with real merchants yet, so we can't claim demand.
 
 ## Can they try it today?
 
-<!-- Amit: replace with the deployed URL, and remove this comment. -->
 Live app: [ADD DEPLOYED URL]
 
 The app runs on Whitechain Sepolia and Arkiv's Rabdi testnet, using test USDT. A merchant logs in
@@ -24,5 +23,4 @@ Current limits are in the [README](../README.md#current-limitations).
 
 ## Will you keep building it after Mumbai?
 
-<!-- Amit: answer this in your own words, and remove this comment. -->
 [AMIT TO ANSWER]
