@@ -170,7 +170,7 @@ export function ReceiptPanel() {
       </section>
       <CopyLink />
       <Link href="/pay" className="text-center text-[13px]/[18px] text-accent-text">
-        See all your invoices
+        See all your payments
       </Link>
       <p className="text-center text-[13px]/[18px] text-muted">
         These records are public, so you and the merchant can both check them at any time.

@@ -13,7 +13,7 @@ export function PaymentReminders() {
   const pathname = usePathname();
   const [dismissed, setDismissed] = useState("");
 
-  // The To pay page lists the same invoices, so a banner there would only repeat them.
+  // The Payments page lists the same invoices, so a banner there would only repeat them.
   if (pathname === "/pay") return null;
 
   // Closing it hides these reminders only. A new one, or one turning overdue, shows it again.

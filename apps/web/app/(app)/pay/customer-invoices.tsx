@@ -76,7 +76,7 @@ function InvoiceSections({
   return (
     <>
       {pending.length > 0 && (
-        <section aria-label="To pay" className="flex flex-col gap-3">
+        <section aria-label="Unpaid" className="flex flex-col gap-3">
           <h2 className="display text-xl">Unpaid</h2>
           <ul className="flex flex-col gap-3">
             {pending.map((invoice) => (
@@ -126,7 +126,10 @@ export function CustomerInvoices() {
 
   return (
     <main className="mx-auto flex w-full max-w-[720px] flex-col gap-6">
-      <h1 className="display text-4xl/11">To pay</h1>
+      <div>
+        <h1 className="display text-4xl/11">Your payments</h1>
+        <p className="mt-0.5 text-muted">Invoices sent to you, your subscriptions and your receipts.</p>
+      </div>
       <MySubscriptions />
       {!credentials && (
         <section className="card flex flex-wrap items-center justify-between gap-3 px-5 py-4">

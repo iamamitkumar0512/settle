@@ -1,7 +1,7 @@
 import type { Address } from "viem";
 import { shortAddress } from "./format";
 
-// An invoice as its customer sees it in "To pay".
+// An invoice as its customer sees it in "Payments".
 export type CustomerInvoice = {
   id: string;
   merchantName: string;

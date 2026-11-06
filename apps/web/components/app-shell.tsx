@@ -15,7 +15,7 @@ import { SwitchNetwork } from "./switch-network";
 const NAV = [
   { href: "/dashboard", label: "Invoices", icon: "M7 3h7l4 4v14H7zM14 3v4h4M10 12h5M10 16h5" },
   { href: "/plans", label: "Plans", icon: "M4 12a8 8 0 0 1 14-5l2 2M20 12a8 8 0 0 1-14 5l-2-2M20 4v5h-5M4 20v-5h5" },
-  { href: "/pay", label: "To pay", icon: "M3 7h18v11H3zM3 11h18M7 15h3" },
+  { href: "/pay", label: "Payments", icon: "M3 7h18v11H3zM3 11h18M7 15h3" },
   { href: "/account", label: "Account", icon: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM5 20a7 7 0 0 1 14 0" },
   { href: "/developers", label: "Developers", icon: "M9 8l-4 4 4 4M15 8l4 4-4 4" },
 ];

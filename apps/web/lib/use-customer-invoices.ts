@@ -33,7 +33,7 @@ export function useBilledInvoices() {
   return useQuery({
     queryKey: ["customer-invoices", address, credentials],
     enabled: Boolean(credentials),
-    // The nav, the reminder banner and the To pay page all read this, so one answer serves them.
+    // The nav, the reminder banner and the Payments page all read this, so one answer serves them.
     staleTime: REFRESH_MS / 2,
     refetchInterval: REFRESH_MS,
     queryFn: async () => {
