@@ -4,6 +4,7 @@ import { registry, USDT_DECIMALS } from "./contracts";
 import { explorerTxUrl } from "./format";
 import { invoiceState, type Invoice } from "./invoice";
 import type { InvoiceCustomer } from "./customer-invoices";
+import type { SubscriptionIncome } from "./use-subscription-income";
 import { blockWindows, toEvent, type InvoiceEvent } from "./use-invoice-records";
 
 const HEADERS = [
@@ -109,6 +110,7 @@ export async function buildInvoicesCsv(
   now: bigint,
   customers: Map<string, InvoiceCustomer>,
   agentSales: AgentSale[] = [],
+  subscriptionPayments: SubscriptionIncome[] = [],
 ) {
   const events = await readMerchantEvents(client, merchant);
 
@@ -175,7 +177,38 @@ export async function buildInvoicesCsv(
     ];
   });
 
+  // So is a subscription payment. Its plan is in the description.
+  const subscriptionRows = subscriptionPayments.map((payment) => {
+    const paidAt = utc(payment.time);
+    return [
+      "",
+      payment.merchantName,
+      "",
+      "",
+      payment.subscriber,
+      payment.planName,
+      "",
+      "Subscription payment",
+      paidAt,
+      "",
+      paidAt,
+      "USDT",
+      usdt(payment.amount),
+      usdt(0n),
+      usdt(payment.fee),
+      usdt(payment.amount - payment.fee),
+      payment.subscriber,
+      merchant,
+      payment.hash,
+      explorerTxUrl(payment.hash),
+      "",
+      "",
+    ];
+  });
+
   return (
-    [HEADERS, ...rows, ...agentRows].map((row) => row.map(cell).join(",")).join("\r\n") + "\r\n"
+    [HEADERS, ...rows, ...agentRows, ...subscriptionRows]
+      .map((row) => row.map(cell).join(","))
+      .join("\r\n") + "\r\n"
   );
 }

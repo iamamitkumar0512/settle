@@ -15,6 +15,7 @@ import {
 import { customerContact, type InvoiceCustomer } from "@/lib/customer-invoices";
 import { payUrl } from "@/lib/pay-link";
 import { useAgentSales } from "@/lib/use-agent-sales";
+import { useSubscriptionIncome, type SubscriptionIncome } from "@/lib/use-subscription-income";
 import { useMerchantCustomers } from "@/lib/use-merchant-customers";
 import { useMerchantInvoices } from "@/lib/use-merchant-invoices";
 import { useMerchantProfile } from "@/lib/use-merchant-profile";
@@ -54,10 +55,12 @@ function Summary({
   rows,
   payments,
   agentSales,
+  subscriptionPayments,
 }: {
   rows: { invoice: Invoice; state: InvoiceState }[];
   payments?: Map<string, MerchantPayment>;
   agentSales: AgentSale[];
+  subscriptionPayments: SubscriptionIncome[];
 }) {
   const open = rows.filter(({ state }) => state.group === "Open");
   const overdue = open.filter(({ state }) => state.isOverdue);
@@ -67,10 +70,16 @@ function Summary({
     items.reduce((sum, { invoice }) => sum + read(invoice), 0n);
   // A relayed payment repays the relayer's gas out of the invoice. Nothing is owed afterwards.
   const relayed = paid.filter(({ invoice }) => payments?.get(String(invoice.id))?.gasless);
-  const sold = agentSales.reduce((sum, { amount }) => sum + BigInt(amount), 0n);
-  const soldFees = agentSales.reduce((sum, { networkFee }) => sum + BigInt(networkFee), 0n);
-  const collected = paid.length + agentSales.length;
-  const feePayments = relayed.length + agentSales.length;
+  // Sales to agents and subscription payments have no invoice, but they are money collected.
+  const other =
+    agentSales.reduce((sum, { amount }) => sum + BigInt(amount), 0n) +
+    subscriptionPayments.reduce((sum, { amount }) => sum + amount, 0n);
+  const otherFees =
+    agentSales.reduce((sum, { networkFee }) => sum + BigInt(networkFee), 0n) +
+    subscriptionPayments.reduce((sum, { fee }) => sum + fee, 0n);
+  const otherCount = agentSales.length + subscriptionPayments.length;
+  const collected = paid.length + otherCount;
+  const feePayments = relayed.length + otherCount;
 
   return (
     <section
@@ -79,7 +88,7 @@ function Summary({
     >
       <Stat
         label="Collected"
-        value={formatUsdt(total(paid, (invoice) => invoice.amount) + sold)}
+        value={formatUsdt(total(paid, (invoice) => invoice.amount) + other)}
         detail={`USDT from ${collected} ${collected === 1 ? "payment" : "payments"}`}
       />
       <Stat
@@ -87,7 +96,7 @@ function Summary({
         value={
           payments
             ? formatUsdt(
-                total(relayed, (invoice) => payments.get(String(invoice.id))?.fee ?? 0n) + soldFees,
+                total(relayed, (invoice) => payments.get(String(invoice.id))?.fee ?? 0n) + otherFees,
               )
             : "—"
         }
@@ -138,11 +147,13 @@ function ExportButton({
   now,
   customers,
   agentSales,
+  subscriptionPayments,
 }: {
   invoices: Invoice[];
   now: bigint;
   customers: Map<string, InvoiceCustomer>;
   agentSales: AgentSale[];
+  subscriptionPayments: SubscriptionIncome[];
 }) {
   const { address } = useSession();
   const [exporting, setExporting] = useState(false);
@@ -153,7 +164,15 @@ function ExportButton({
     setExporting(true);
     setFailed(false);
     try {
-      const csv = await buildInvoicesCsv(logsClient, address, invoices, now, customers, agentSales);
+      const csv = await buildInvoicesCsv(
+        logsClient,
+        address,
+        invoices,
+        now,
+        customers,
+        agentSales,
+        subscriptionPayments,
+      );
       const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
       const link = document.createElement("a");
       link.href = url;
@@ -325,6 +344,7 @@ function InvoiceList() {
   const { address } = session;
   const merchant = useMerchantCustomers();
   const agentSales = useAgentSales();
+  const subscriptionPayments = useSubscriptionIncome(address);
   const { orders } = useMerchantProfile(address);
   const { invoices, isLoading, isError, retry } = useMerchantInvoices(address);
   const payments = useMerchantPayments(
@@ -388,7 +408,12 @@ function InvoiceList() {
 
   return (
     <>
-      <Summary rows={rows} payments={payments} agentSales={agentSales} />
+      <Summary
+        rows={rows}
+        payments={payments}
+        agentSales={agentSales}
+        subscriptionPayments={subscriptionPayments}
+      />
       {session.kind === "wallet" && !merchant.isUnlocked && <CustomerSignIn />}
       {merchant.error && (
         <p role="alert" className="text-[13px]/[18px] text-late">
@@ -410,7 +435,7 @@ function InvoiceList() {
             ))}
           </div>
           <div className="flex flex-wrap items-center gap-3">
-            <label className="min-w-[200px] flex-1">
+            <label className="min-w-[250px] flex-1">
               <span className="sr-only">Search invoices</span>
               <input
                 className="input h-11 text-sm"
@@ -425,6 +450,7 @@ function InvoiceList() {
               now={now}
               customers={merchant.customers}
               agentSales={agentSales}
+              subscriptionPayments={subscriptionPayments}
             />
           </div>
         </div>

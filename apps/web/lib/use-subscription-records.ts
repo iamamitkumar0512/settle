@@ -10,9 +10,15 @@ import { blockWindows, type InvoiceEvent } from "./use-invoice-records";
 // What happened to one subscription, each step with the transaction that proves it. Settle's
 // relayer sends these transactions, so they are not in the customer's or the merchant's own list
 // on the explorer. This is where both of them find the proof.
+export type SubscriptionPayment = InvoiceEvent & {
+  amount: bigint;
+  /** Kept back from the merchant to repay gas. */
+  fee: bigint;
+};
+
 export type SubscriptionRecords = {
   started?: InvoiceEvent & { payments: number };
-  payments: (InvoiceEvent & { amount: bigint })[];
+  payments: SubscriptionPayment[];
   cancelled?: InvoiceEvent & { by: Address };
 };
 
@@ -65,7 +71,13 @@ async function readRecords(client: PublicClient, ids: bigint[]) {
     }
     for (const log of charged) {
       const records = byId.get(String(log.args.id));
-      if (records) records.payments.push({ ...(await toEvent(log)), amount: log.args.amount ?? 0n });
+      if (records) {
+        records.payments.push({
+          ...(await toEvent(log)),
+          amount: log.args.amount ?? 0n,
+          fee: log.args.relayFee ?? 0n,
+        });
+      }
     }
     for (const log of cancelled) {
       const records = byId.get(String(log.args.id));
