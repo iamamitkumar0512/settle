@@ -15,6 +15,26 @@ export function formatUsdt(amount: bigint) {
   return `${BigInt(whole).toLocaleString("en-US")}.${fraction.padEnd(2, "0")}`;
 }
 
+const PERIOD_UNITS: [number, string][] = [
+  [31_536_000, "year"],
+  [2_592_000, "month"],
+  [604_800, "week"],
+  [86_400, "day"],
+  [3_600, "hour"],
+  [60, "minute"],
+];
+
+// "every month", or "every 3 days" when the period isn't one plain unit. A month is 30 days.
+export function periodLabel(seconds: number) {
+  for (const [size, unit] of PERIOD_UNITS) {
+    if (seconds % size === 0) {
+      const count = seconds / size;
+      return count === 1 ? `every ${unit}` : `every ${count} ${unit}s`;
+    }
+  }
+  return `every ${seconds} seconds`;
+}
+
 export function explorerTxUrl(hash: Hash) {
   return `${whitechainSepolia.blockExplorers.default.url}/tx/${hash}`;
 }

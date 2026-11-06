@@ -12,6 +12,7 @@ import { useInvoiceDetails } from "@/lib/use-invoice-details";
 import { postJson } from "@/lib/relay-client";
 import { usePaidByWallet } from "@/lib/use-paid-by-wallet";
 import { useSession } from "@/lib/use-session";
+import { MySubscriptions } from "./my-subscriptions";
 
 function useInvoicesById(ids: bigint[]) {
   const reads = useReadContracts({
@@ -150,6 +151,7 @@ export function CustomerInvoices() {
   return (
     <main className="mx-auto flex w-full max-w-[720px] flex-col gap-6">
       <h1 className="display text-4xl/11">To pay</h1>
+      <MySubscriptions />
       {!credentials && (
         <section className="card flex flex-wrap items-center justify-between gap-3 px-5 py-4">
           <div>

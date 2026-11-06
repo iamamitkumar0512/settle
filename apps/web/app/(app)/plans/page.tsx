@@ -1,0 +1,22 @@
+import Link from "next/link";
+import { PlansPanel } from "./plans-panel";
+
+// These pages only render after login, so there is nothing to prerender for an instant navigation.
+export const instant = false;
+
+export default function PlansPage() {
+  return (
+    <main className="mx-auto flex w-full max-w-[1376px] flex-col gap-6">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="display text-4xl/11">Plans</h1>
+          <p className="mt-0.5 text-muted">Bill customers on a schedule, in USDT.</p>
+        </div>
+        <Link href="/plans/new" className="btn btn-primary">
+          New plan
+        </Link>
+      </div>
+      <PlansPanel />
+    </main>
+  );
+}

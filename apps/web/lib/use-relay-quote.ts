@@ -7,6 +7,7 @@ type RelayQuote = {
   relayFee: string;
   minInvoice: string;
   withdrawFee: string;
+  chargeFee: string;
   canAttachPdf: boolean;
 };
 
@@ -22,6 +23,7 @@ export function useRelayQuote() {
     relayFee: data ? BigInt(data.relayFee) : 0n,
     minInvoice: data ? BigInt(data.minInvoice) : 0n,
     withdrawFee: data ? BigInt(data.withdrawFee) : 0n,
+    chargeFee: data ? BigInt(data.chargeFee) : 0n,
     canAttachPdf: data?.canAttachPdf ?? false,
   };
 }

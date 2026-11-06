@@ -10,8 +10,8 @@ lets the customer pay without holding WBT for gas.
 > Sepolia, and invoices have been created, paid and refunded there without the customer or the
 > merchant holding gas. Built: email or wallet login, the merchant dashboard, pay page, receipts,
 > refunds, CSV export, the relayer, Arkiv records, PDF invoices on Swarm, an SDK and a demo shop.
-> Subscriptions have a contract and a relay API, but no screens yet. Reminders are not built. See
-> [Current limitations](#current-limitations).
+> Subscriptions are built too: plans, a subscribe page, collection of due payments and cancel.
+> Reminders are not built. See [Current limitations](#current-limitations).
 
 ## Why onchain stablecoin settlement on Whitechain
 
@@ -95,6 +95,16 @@ USDT contract: the funds would move, but the invoice would never be marked paid.
 `receiveWithAuthorization` requires `msg.sender == to`, so the registry is the only valid consumer
 of the signature. The authorization's nonce is derived from the invoice and payer, so a signature
 can't be replayed or used on another invoice.
+
+## Subscriptions
+
+A merchant publishes a plan: an amount and a period. A customer subscribes with two signatures. One
+is a USDT permit, which gives the contract an allowance. The other names the plan and caps the
+number of payments. The first payment is taken at once. After that anyone can collect a payment
+once it is due, so Settle's relayer does, and the customer or the merchant can cancel at any time.
+
+The second signature matters. A permit is only an allowance, so without it, anyone who saw one
+could attach it to a plan of their own.
 
 ## The relayer
 
@@ -201,8 +211,9 @@ To deploy it, see [`DEPLOY.md`](DEPLOY.md).
   proven in fork tests and in the app against a fork.
 - An invoice keeps the fee estimated when it was created, so the relayer can be repaid a little
   more or less than the gas it later spends.
-- Subscriptions have a contract and a relay API. Their screens are not built yet, so nobody has
-  subscribed on the live chain.
+- Nobody has subscribed on the live chain yet. A plan has no name or description yet. A wallet
+  customer signs twice to subscribe. Due payments are collected once a day, or when the merchant
+  collects one from the Plans page.
 - Reminders are not built yet.
 - The relayer is one wallet with one send queue, and rate limits are counted in memory. Both
   assume a single running copy of the app.

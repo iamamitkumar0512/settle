@@ -12,6 +12,7 @@ import { SwitchNetwork } from "./switch-network";
 
 const NAV = [
   { href: "/dashboard", label: "Invoices" },
+  { href: "/plans", label: "Plans" },
   { href: "/pay", label: "To pay" },
   { href: "/account", label: "Account" },
 ];
