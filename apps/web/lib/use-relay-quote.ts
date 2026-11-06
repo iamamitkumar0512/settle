@@ -9,6 +9,7 @@ type RelayQuote = {
   withdrawFee: string;
   chargeFee: string;
   canAttachPdf: boolean;
+  canSendReminders: boolean;
 };
 
 export function useRelayQuote() {
@@ -25,5 +26,6 @@ export function useRelayQuote() {
     withdrawFee: data ? BigInt(data.withdrawFee) : 0n,
     chargeFee: data ? BigInt(data.chargeFee) : 0n,
     canAttachPdf: data?.canAttachPdf ?? false,
+    canSendReminders: data?.canSendReminders ?? false,
   };
 }

@@ -91,6 +91,8 @@ export type InvoiceState = {
   group: "Open" | "Paid" | "Refunded" | "Cancelled";
   tone: string;
   isOverdue: boolean;
+  // Still open and due within three days.
+  isDueSoon: boolean;
 };
 
 export type InvoiceRow = readonly [
@@ -114,20 +116,20 @@ const DUE_SOON_SECONDS = 3n * 24n * 60n * 60n;
 
 export function invoiceState(invoice: Invoice, now: bigint): InvoiceState {
   if (invoice.status === InvoiceStatus.Cancelled) {
-    return { label: "Cancelled", group: "Cancelled", tone: "", isOverdue: false };
+    return { label: "Cancelled", group: "Cancelled", tone: "", isOverdue: false, isDueSoon: false };
   }
   if (invoice.status === InvoiceStatus.Paid) {
-    return { label: "Paid", group: "Paid", tone: "tone-paid", isOverdue: false };
+    return { label: "Paid", group: "Paid", tone: "tone-paid", isOverdue: false, isDueSoon: false };
   }
   if (invoice.status === InvoiceStatus.Refunded) {
     const label = invoice.refunded < invoice.amount ? "Partly refunded" : "Refunded";
-    return { label, group: "Refunded", tone: "tone-refund", isOverdue: false };
+    return { label, group: "Refunded", tone: "tone-refund", isOverdue: false, isDueSoon: false };
   }
   if (invoice.dueAt < now) {
-    return { label: "Overdue", group: "Open", tone: "tone-late", isOverdue: true };
+    return { label: "Overdue", group: "Open", tone: "tone-late", isOverdue: true, isDueSoon: false };
   }
   if (invoice.dueAt - now < DUE_SOON_SECONDS) {
-    return { label: "Due soon", group: "Open", tone: "tone-due", isOverdue: false };
+    return { label: "Due soon", group: "Open", tone: "tone-due", isOverdue: false, isDueSoon: true };
   }
-  return { label: "Open", group: "Open", tone: "", isOverdue: false };
+  return { label: "Open", group: "Open", tone: "", isOverdue: false, isDueSoon: false };
 }

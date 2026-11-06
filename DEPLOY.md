@@ -31,7 +31,10 @@ Use the same values as your local `apps/web/.env`.
 | `SWARM_BEE_URL`, `SWARM_BATCH_ID` | Optional | PDF invoices. The upload field is hidden without both. |
 | `SHOP_MERCHANT_PK` | Optional | The demo shop's wallet. `/shop` can't take orders without it. |
 
-| `CRON_SECRET` | Recommended | Protects the job that collects subscription payments. Vercel Cron sends it by itself. |
+| `CRON_SECRET` | Recommended | Protects the daily jobs. Vercel Cron sends it by itself. |
+| `RESEND_API_KEY` | Optional | Automatic email reminders. Without it none are sent, and nothing else changes. |
+| `REMINDER_FROM` | Optional | The sender, on a domain verified in Resend. Without it, Resend's test sender is used, which only delivers to your Resend account's own address. |
+| `APP_URL` | Optional | The app's public address, for links in emails. Defaults to the address a request came to. |
 
 Leave these unset. They point the app at test contracts:
 `NEXT_PUBLIC_REGISTRY_ADDRESS`, `NEXT_PUBLIC_TRANSFER_ADDRESS`,
@@ -58,6 +61,9 @@ Optional tuning, with defaults: `MIN_INVOICE_USDT` (1), `RELAYER_MIN_WBT` (0.005
   at once, two can pick the same nonce and one request fails. The user can retry. Limits also
   reset when a copy restarts.
 - **Time limits.** Routes that send a transaction or write to Arkiv allow 60 seconds.
+- **Reminders.** `apps/web/vercel.json` also runs `/api/cron/reminders` once a day at 07:00 UTC.
+  It must run once a day, no more and no less: each reminder goes out on the one run that falls
+  inside its day-wide window.
 - **Subscription payments.** `apps/web/vercel.json` runs `/api/cron/charge` once a day at 06:00
   UTC, which is as often as Vercel's free plan allows. A plan with a shorter period is collected
   late unless something else calls that route, or `/api/relay/charge` for one subscription.

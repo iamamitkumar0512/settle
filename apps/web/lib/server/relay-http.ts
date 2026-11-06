@@ -13,6 +13,15 @@ export function clientIp(request: Request) {
   return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
 }
 
+// The app's public address, for links in emails. APP_URL wins when set; otherwise it is the
+// address this request came to.
+export function requestOrigin(request: Request) {
+  const fixed = process.env.APP_URL?.replace(/\/+$/, "");
+  if (fixed) return fixed;
+  const protocol = request.headers.get("x-forwarded-proto") ?? "http";
+  return `${protocol}://${request.headers.get("host")}`;
+}
+
 type Body = Record<string, unknown>;
 
 // Shared wrapper for relay routes: rate limit, parse JSON, and turn RelayError into a response.

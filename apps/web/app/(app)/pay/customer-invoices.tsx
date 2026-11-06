@@ -1,32 +1,15 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
-import { useReadContracts } from "wagmi";
-import { registry } from "@/lib/contracts";
 import type { CustomerInvoice } from "@/lib/customer-invoices";
 import { formatDate, formatUsdt } from "@/lib/format";
-import { invoiceState, toInvoice, type Invoice } from "@/lib/invoice";
+import { invoiceState, type Invoice } from "@/lib/invoice";
+import { useBilledInvoices, useInvoicesById } from "@/lib/use-customer-invoices";
 import { useInvoiceDetails } from "@/lib/use-invoice-details";
-import { postJson } from "@/lib/relay-client";
 import { usePaidByWallet } from "@/lib/use-paid-by-wallet";
 import { useSession } from "@/lib/use-session";
 import { MySubscriptions } from "./my-subscriptions";
-
-function useInvoicesById(ids: bigint[]) {
-  const reads = useReadContracts({
-    contracts: ids.map(
-      (id) => ({ ...registry, functionName: "invoices", args: [id] }) as const,
-    ),
-    allowFailure: false,
-    query: { enabled: ids.length > 0 },
-  });
-  return {
-    invoices: (reads.data ?? []).map((row, index) => toInvoice(ids[index], row)),
-    isLoading: ids.length > 0 && reads.isPending,
-  };
-}
 
 function InvoiceCard({
   invoice,
@@ -81,9 +64,10 @@ function InvoiceSections({
   emptyText: string;
 }) {
   const [now] = useState(() => BigInt(Math.floor(Date.now() / 1000)));
-  const newestFirst = [...invoices].sort((a, b) => Number(b.id - a.id));
-  const pending = newestFirst.filter((invoice) => invoiceState(invoice, now).group === "Open");
-  const past = newestFirst.filter((invoice) => invoiceState(invoice, now).group !== "Open");
+  const isOpen = (invoice: Invoice) => invoiceState(invoice, now).group === "Open";
+  // What is due first comes first, so an overdue invoice is never at the bottom of the list.
+  const pending = invoices.filter(isOpen).sort((a, b) => Number(a.dueAt - b.dueAt));
+  const past = invoices.filter((invoice) => !isOpen(invoice)).sort((a, b) => Number(b.id - a.id));
 
   if (invoices.length === 0) {
     return <p className="card px-6 py-12 text-center text-muted">{emptyText}</p>;
@@ -130,15 +114,7 @@ export function CustomerInvoices() {
   const session = useSession();
   const { credentials } = session;
 
-  const billed = useQuery({
-    queryKey: ["customer-invoices", session.address, credentials],
-    enabled: Boolean(credentials),
-    queryFn: async () => {
-      const result = await postJson("/api/customer/invoices", { credentials });
-      if (!result.ok) throw new Error(result.error);
-      return result.data.invoices as CustomerInvoice[];
-    },
-  });
+  const billed = useBilledInvoices();
   const paid = usePaidByWallet(session.address);
 
   const known = new Map((billed.data ?? []).map((invoice) => [invoice.id, invoice]));

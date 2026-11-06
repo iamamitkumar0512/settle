@@ -11,7 +11,9 @@ lets the customer pay without holding WBT for gas.
 > merchant holding gas. Built: email or wallet login, the merchant dashboard, pay page, receipts,
 > refunds, CSV export, the relayer, Arkiv records, PDF invoices on Swarm, an SDK and a demo shop.
 > Subscriptions are built too: plans, a subscribe page, collection of due payments and cancel.
-> Reminders are not built. See [Current limitations](#current-limitations).
+> Reminders are built: in the app for the customer, a Remind button for the merchant and a calendar
+> file, with automatic email as an extra that needs an email key. See
+> [Current limitations](#current-limitations).
 
 ## Why onchain stablecoin settlement on Whitechain
 
@@ -105,6 +107,21 @@ once it is due, so Settle's relayer does, and the customer or the merchant can c
 
 The second signature matters. A permit is only an allowance, so without it, anyone who saw one
 could attach it to a plan of their own.
+
+## Reminders
+
+Reminders work with no outside service, so they also reach a customer who was billed to a wallet
+address and has no email on file.
+
+- **In the app.** "To pay" in the menu shows how many invoices the account still owes. A banner on
+  every page names what is overdue or due within three days, with a button straight to the pay
+  page. It reads the due dates from the contract, so nothing is stored for it.
+- **From the merchant.** An open invoice has a Remind customer button. It writes the message with
+  the invoice's pay link and opens it in the merchant's own mail app, or copies it for any chat.
+- **In the customer's calendar.** The pay page has Add to calendar. It downloads a calendar file
+  for the due date with an alert the morning before and on the day.
+- **By email, optional.** With `RESEND_API_KEY` set, Settle emails the customer once shortly before
+  the due date and once after it, and the Remind button can send from Settle too.
 
 ## The relayer
 
@@ -214,7 +231,10 @@ To deploy it, see [`DEPLOY.md`](DEPLOY.md).
   more or less than the gas it later spends.
 - Nobody has subscribed on the live chain yet. A wallet customer signs twice to subscribe. Due
   payments are collected once a day, or when the merchant collects one from the Plans page.
-- Reminders are not built yet.
+- Automatic reminder emails need a mail provider's key and are off without one. They have only
+  run against a stand-in for that provider. A wallet customer sees the in-app reminder only after
+  signing in once, because invoices sent to a wallet are private. Calendar alerts depend on the
+  customer's calendar app; Google Calendar replaces them with its own default alert.
 - The relayer is one wallet with one send queue, and rate limits are counted in memory. Both
   assume a single running copy of the app.
 - Email login has been used on the live chain less than wallet login. A wallet customer sees one

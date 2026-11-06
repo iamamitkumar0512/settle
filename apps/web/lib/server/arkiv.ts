@@ -143,6 +143,37 @@ export async function readPublicDetails(id: bigint) {
   };
 }
 
+// One invoice's details with its customer's contact, for the server's own use: it is never
+// returned to a caller as it is.
+export async function readInvoiceContact(id: bigint) {
+  const page = await arkivReader()
+    .select({
+      merchant_name: true,
+      public_details: true,
+      private_details: true,
+      private_media_type: true,
+    })
+    .from(InvoiceRecord)
+    .where(and(eq("registry", addr(REGISTRY_ADDRESS)), eq("invoice_id", u64(id))))
+    .createdBy(writerAccount().address)
+    .limit(1)
+    .fetch();
+  const row = page.entities[0];
+  if (!row) return null;
+
+  const details = await decryptPrivateDetails(
+    id,
+    hexToBytes(row.private_details.value),
+    row.private_media_type.value,
+  ).catch(() => null);
+  return {
+    merchantName: row.merchant_name.value,
+    memo: memoFrom(row.public_details.value),
+    customerName: details?.customerName ?? "",
+    customerEmail: details?.customerEmail ?? "",
+  };
+}
+
 export async function readInvoiceFile(id: bigint) {
   const page = await arkivReader()
     .select({ swarm_reference: true, media_type: true, size_bytes: true })

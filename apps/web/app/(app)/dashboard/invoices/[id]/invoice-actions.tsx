@@ -10,19 +10,25 @@ import { postJson, splitSignature } from "@/lib/relay-client";
 import { cancelInvoiceRequest, refundAuthorization } from "@/lib/typed-data";
 import { useSignedAction } from "@/lib/use-signed-action";
 import { useUsdtBalance } from "@/lib/use-usdt-balance";
+import { RemindCustomer, type ReminderContact } from "./remind-customer";
 
 type ActionProps = {
   invoice: Invoice;
   onChanged: () => Promise<unknown>;
 };
 
-export function CancelCard({ invoice, linkKey, onChanged }: ActionProps & { linkKey?: string }) {
+export function CancelCard({
+  invoice,
+  contact,
+  isOverdue,
+  onChanged,
+}: ActionProps & { contact: ReminderContact; isOverdue: boolean }) {
   const action = useSignedAction();
   const [confirming, setConfirming] = useState(false);
   const [copied, setCopied] = useState(false);
 
   async function copyLink() {
-    await navigator.clipboard.writeText(payUrl(invoice.id, linkKey));
+    await navigator.clipboard.writeText(payUrl(invoice.id, contact.linkKey));
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }
@@ -45,6 +51,7 @@ export function CancelCard({ invoice, linkKey, onChanged }: ActionProps & { link
       <button type="button" className="btn btn-primary" onClick={copyLink}>
         {copied ? "Link copied" : "Copy pay link"}
       </button>
+      <RemindCustomer invoice={invoice} contact={contact} isOverdue={isOverdue} />
       {confirming ? (
         <div className="well flex flex-col gap-3">
           <p className="text-[13px]/[18px]">

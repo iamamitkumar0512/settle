@@ -1,4 +1,5 @@
 import { connection } from "next/server";
+import { emailConfigured } from "@/lib/server/email";
 import { relayFees } from "@/lib/server/gas-fee";
 import { MIN_INVOICE, RelayError, relayerAccount } from "@/lib/server/relayer";
 import { swarmConfigured } from "@/lib/server/swarm";
@@ -23,5 +24,6 @@ export async function GET() {
     withdrawFee: String(withdrawFee),
     chargeFee: String(chargeFee),
     canAttachPdf: swarmConfigured(),
+    canSendReminders: emailConfigured(),
   });
 }

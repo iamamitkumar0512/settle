@@ -189,7 +189,16 @@ function Detail({ invoice, onChanged }: { invoice: Invoice; onChanged: () => Pro
       </div>
       <aside className="card flex flex-col gap-4 p-5">
         {invoice.status === InvoiceStatus.Open && (
-          <CancelCard invoice={invoice} linkKey={customer?.linkKey} onChanged={onChanged} />
+          <CancelCard
+            invoice={invoice}
+            contact={{
+              ...customer,
+              merchantName: customer?.merchantName ?? details?.merchantName,
+              memo: customer?.memo ?? details?.memo,
+            }}
+            isOverdue={state.isOverdue}
+            onChanged={onChanged}
+          />
         )}
         {isPaid && <RefundCard invoice={invoice} onChanged={onChanged} />}
         {invoice.status === InvoiceStatus.Cancelled && (

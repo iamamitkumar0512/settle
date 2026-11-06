@@ -12,14 +12,17 @@ import { InvoicePdf } from "@/components/invoice-pdf";
 import { LoginCard } from "@/components/login-card";
 import { Message } from "@/components/message";
 import { SwitchNetwork } from "@/components/switch-network";
+import { invoiceCalendarFile } from "@/lib/calendar";
 import { whitechainSepolia } from "@/lib/chains";
 import { registry, usdtAbi, USDT_ADDRESS } from "@/lib/contracts";
 import { explorerTxUrl, formatDate, formatUsdt, shortAddress } from "@/lib/format";
 import { InvoiceStatus, type Invoice } from "@/lib/invoice";
+import { payUrl, usePayLinkKey } from "@/lib/pay-link";
 import { postJson, splitSignature } from "@/lib/relay-client";
 import { paymentAuthorization } from "@/lib/typed-data";
 import { useInvoice } from "@/lib/use-invoice";
 import { useInvoiceDetails } from "@/lib/use-invoice-details";
+import { useNow } from "@/lib/use-now";
 import { useRelayQuote } from "@/lib/use-relay-quote";
 import { useSession } from "@/lib/use-session";
 import { useSignedAction } from "@/lib/use-signed-action";
@@ -49,6 +52,44 @@ function Shell({ children, aside }: { children: React.ReactNode; aside: React.Re
         {children}
       </section>
     </main>
+  );
+}
+
+// Saves the due date to the customer's own calendar, which then reminds them by itself.
+function AddToCalendar({ invoice }: { invoice: Invoice }) {
+  const { data: details } = useInvoiceDetails(invoice.id);
+  const linkKey = usePayLinkKey();
+  const now = useNow(60_000);
+
+  if (invoice.status !== InvoiceStatus.Open || invoice.dueAt <= now) return null;
+
+  function download() {
+    const file = invoiceCalendarFile({
+      id: invoice.id,
+      merchantName: details?.merchantName,
+      memo: details?.memo,
+      amount: invoice.amount,
+      dueAt: invoice.dueAt,
+      // The key stays on the link, so the saved event still opens the invoice's PDF.
+      payUrl: payUrl(invoice.id, linkKey),
+      createdAt: new Date(),
+    });
+    const url = URL.createObjectURL(new Blob([file], { type: "text/calendar;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `settle-invoice-${invoice.id}.ics`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  return (
+    <button
+      type="button"
+      className="mt-1 block cursor-pointer text-[13px]/[18px] text-accent-text underline-offset-2 hover:underline"
+      onClick={download}
+    >
+      Add to calendar
+    </button>
   );
 }
 
@@ -85,6 +126,7 @@ function InvoiceSummary({ invoice }: { invoice: Invoice }) {
         <div>
           <div className="label">Due</div>
           <div className="mt-1">{formatDate(new Date(Number(invoice.dueAt) * 1000))}</div>
+          <AddToCalendar invoice={invoice} />
         </div>
       </div>
     </>

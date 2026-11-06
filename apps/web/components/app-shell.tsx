@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
+import { usePendingInvoices } from "@/lib/use-customer-invoices";
 import { useSession } from "@/lib/use-session";
 import { AccountMenu } from "./account-menu";
 import { FinishSetup } from "./finish-setup";
 import { LoginCard } from "./login-card";
 import { Logo } from "./logo";
+import { PaymentReminders } from "./payment-reminders";
 import { SwitchNetwork } from "./switch-network";
 
 const NAV = [
@@ -16,6 +18,24 @@ const NAV = [
   { href: "/pay", label: "To pay" },
   { href: "/account", label: "Account" },
 ];
+
+// How many invoices this account still has to pay, coloured when one is overdue or due soon.
+function ToPayCount() {
+  const { open, urgent } = usePendingInvoices();
+  if (open.length === 0) return null;
+
+  const tone = urgent.some(({ state }) => state.isOverdue)
+    ? "tone-late"
+    : urgent.length > 0
+      ? "tone-due"
+      : "";
+  return (
+    <span className={`pill ml-2 before:hidden ${tone}`}>
+      {open.length}
+      <span className="sr-only"> unpaid</span>
+    </span>
+  );
+}
 
 function NavLinks({ pathname }: { pathname: string }) {
   return (
@@ -32,6 +52,12 @@ function NavLinks({ pathname }: { pathname: string }) {
             }`}
           >
             {label}
+            {href === "/pay" && (
+              // The count depends on the time of day, so it only ever renders in the browser.
+              <Suspense fallback={null}>
+                <ToPayCount />
+              </Suspense>
+            )}
           </Link>
         );
       })}
@@ -71,7 +97,14 @@ function Gate({ children }: { children: ReactNode }) {
       </section>
     );
   }
-  return children;
+  return (
+    <>
+      <Suspense fallback={null}>
+        <PaymentReminders />
+      </Suspense>
+      {children}
+    </>
+  );
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
