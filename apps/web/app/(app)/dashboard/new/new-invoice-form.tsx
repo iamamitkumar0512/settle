@@ -146,6 +146,8 @@ function CreatedPanel({
 
 export function NewInvoiceForm() {
   const session = useSession();
+  // Any invoice can go to a wallet address, but an email account never needs to hear about that.
+  const contactLabel = session.kind === "email" ? "email" : "email or wallet address";
   const action = useSignedAction();
   const quote = useRelayQuote();
 
@@ -215,7 +217,7 @@ export function NewInvoiceForm() {
     setEmailError(
       contact
         ? undefined
-        : "Enter your customer's email or wallet address, so they can find this invoice.",
+        : `Enter your customer's ${contactLabel}, so they can find this invoice.`,
     );
     if (!amountValid || dueAt === null || !merchantName.trim() || !contact) return;
     if (pdf && pdfProblem(pdf)) return;
@@ -312,7 +314,7 @@ export function NewInvoiceForm() {
                   />
                 </label>
                 <label className="field">
-                  Customer email or wallet address
+                  {`Customer ${contactLabel}`}
                   <input
                     className="input"
                     type="text"
@@ -403,13 +405,12 @@ export function NewInvoiceForm() {
             {quote.available ? (
               <div className="well flex flex-col gap-1.5 text-[13px]/[18px]">
                 <div className="flex items-baseline justify-between gap-4">
-                  <span className="text-muted">Network fee, if your customer pays without gas</span>
+                  <span className="text-muted">Network fee</span>
                   <span className="figure">{formatUsdt(relayFee)} USDT</span>
                 </div>
                 <p className="text-muted">
-                  It repays the gas Settle spends to send the payment, and comes out of this
-                  invoice. Settle adds nothing on top. If your customer pays the gas from their own
-                  wallet, you receive the full amount.
+                  It repays what it costs to send the payment, and comes out of this invoice. Settle
+                  adds nothing on top.
                 </p>
               </div>
             ) : (

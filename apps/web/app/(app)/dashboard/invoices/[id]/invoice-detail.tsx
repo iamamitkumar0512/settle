@@ -49,7 +49,7 @@ function timeline(invoice: Invoice, records: InvoiceRecords) {
         key: "fee",
         tone: "",
         title: "Network fee",
-        detail: "Gas for sending the payment, repaid to Settle",
+        detail: "What it cost to send the payment",
         amount: `−${formatUsdt(records.paid.fee)}`,
       });
     }
@@ -231,7 +231,7 @@ function Loaded() {
   if (state === "error") {
     return (
       <p role="alert" className="card px-6 py-16 text-center text-muted">
-        Whitechain didn&apos;t respond. Refresh the page to try again.
+        The network didn&apos;t respond. Refresh the page to try again.
       </p>
     );
   }

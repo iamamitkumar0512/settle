@@ -151,7 +151,7 @@ export function ReceiptPanel() {
           <Row label="Paid to">
             {details?.merchantName ?? "—"}
           </Row>
-          <Row label="Proof on Whitechain">
+          <Row label="Public proof">
             {records.data?.paid ? (
               <RecordLink hash={records.data.paid.hash} />
             ) : records.isError ? (

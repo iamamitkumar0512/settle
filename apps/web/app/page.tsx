@@ -27,7 +27,7 @@ const AFTER_PAYMENT = [
   { title: "Refunds", text: "In part or in full, from the dashboard or your code. They show on the receipt." },
   { title: "Subscriptions", text: "A customer approves once, is billed on schedule and can cancel any time." },
   { title: "Reminders", text: "Customers see what is due. You can nudge them, and they can add it to a calendar." },
-  { title: "Webhooks", text: "Your server is told about each payment and refund, signed by Settle." },
+  { title: "Webhooks", text: "Your server is told about each order and refund, signed by Settle." },
   { title: "Receipts", text: "A permanent receipt for every payment, with proof anyone can check." },
   { title: "Accounting export", text: "One CSV with every payment, fee and refund." },
 ];
@@ -80,7 +80,7 @@ export default function Home() {
                 <ChainStatus />
               </div>
               <p className="text-[13px]/[18px] text-muted">
-                Money goes straight to you. The contract never holds it, and it has no owner.
+                Money goes straight to you. The contract keeps nothing, and it has no owner.
               </p>
             </div>
           </div>

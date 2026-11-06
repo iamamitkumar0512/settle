@@ -270,8 +270,8 @@ export function NewPlanForm() {
             <span className="figure">{formatUsdt(relayFee)} USDT</span>
           </div>
           <p className="text-muted">
-            It repays the gas Settle spends to collect a payment {periodLabel(period)}. Settle adds
-            nothing on top. Your customer pays the amount above and no gas.
+            It repays what it costs to collect a payment {periodLabel(period)}, and comes out of
+            each payment. Settle adds nothing on top. Your customer pays only the amount above.
           </p>
         </div>
       ) : (

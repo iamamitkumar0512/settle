@@ -80,7 +80,7 @@ function Withdraw({ address, balance }: { address: Address; balance: bigint }) {
     setSent(undefined);
     action.clearError();
 
-    if (!isAddress(to)) return setError("Enter a valid wallet address.");
+    if (!isAddress(to)) return setError("Enter a valid address.");
     if (amount === null) return setError("Enter an amount above 0, with up to 6 decimals.");
     if (amount > balance) return setError(`You have ${formatUsdt(balance)} USDT.`);
     if (amount <= fee) return setError(`Enter more than the ${formatUsdt(fee)} USDT fee.`);
@@ -156,7 +156,7 @@ function Withdraw({ address, balance }: { address: Address; balance: bigint }) {
       )}
       <div className="well flex flex-col gap-1.5 text-[13px]/[18px]">
         <div className="flex justify-between gap-4">
-          <span className="text-muted">{direct ? "Gas" : "Network fee, repays the gas"}</span>
+          <span className="text-muted">{direct ? "Gas" : "Network fee"}</span>
           <span className="figure">{direct ? "Paid by your wallet" : `${formatUsdt(fee)} USDT`}</span>
         </div>
         <div className="flex justify-between gap-4">

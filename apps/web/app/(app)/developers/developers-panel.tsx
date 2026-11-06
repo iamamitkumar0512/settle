@@ -144,8 +144,9 @@ export function DevelopersPanel() {
       <section aria-label="Your website's payments" className="card flex flex-col gap-2 p-5">
         <h2 className="display text-xl">Where payments show up</h2>
         <p className="text-muted">
-          Orders from your website appear under Invoices with your order reference. You can refund
-          them and export them there, like any invoice.
+          Orders from your website appear under Invoices with your order reference, where you can
+          refund and export them like any invoice. Sales to AI agents appear there too, and
+          subscription payments count towards what you have collected.
         </p>
         <div>
           <Link href="/dashboard" className="btn">

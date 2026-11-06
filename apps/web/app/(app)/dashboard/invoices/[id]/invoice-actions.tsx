@@ -204,8 +204,7 @@ export function RefundCard({ invoice, onChanged }: ActionProps) {
         )}
       </button>
       <p className="text-[13px]/[18px] text-muted">
-        One click, no gas. It goes from your balance to the customer&apos;s, and shows on their
-        receipt.
+        One click. It goes from your balance to the customer&apos;s, and shows on their receipt.
       </p>
     </>
   );
