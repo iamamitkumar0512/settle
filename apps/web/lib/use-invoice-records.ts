@@ -2,10 +2,9 @@
 
 import { useQuery } from "@tanstack/react-query";
 import type { Hash, PublicClient } from "viem";
-import { usePublicClient } from "wagmi";
-import { whitechainSepolia } from "./chains";
 import { registry, REGISTRY_DEPLOY_BLOCK } from "./contracts";
 import type { Invoice } from "./invoice";
+import { logsClient } from "./logs-client";
 
 // The public RPC's limit for one log request.
 const BLOCKS_PER_REQUEST = 10_000n;
@@ -26,7 +25,14 @@ export type InvoiceRecords = {
   refunds: RefundRecord[];
 };
 
-async function toEvent(
+export function* blockWindows(latest: bigint) {
+  for (let from = REGISTRY_DEPLOY_BLOCK; from <= latest; from += BLOCKS_PER_REQUEST) {
+    const end = from + BLOCKS_PER_REQUEST - 1n;
+    yield { fromBlock: from, toBlock: end < latest ? end : latest };
+  }
+}
+
+export async function toEvent(
   client: PublicClient,
   log: { blockHash: Hash; transactionHash: Hash },
 ): Promise<InvoiceEvent> {
@@ -39,9 +45,8 @@ async function readRecords(client: PublicClient, id: bigint): Promise<InvoiceRec
   const records: InvoiceRecords = { refunds: [] };
   const contract = { address: registry.address, abi: registry.abi };
 
-  for (let from = REGISTRY_DEPLOY_BLOCK; from <= latest; from += BLOCKS_PER_REQUEST) {
-    const end = from + BLOCKS_PER_REQUEST - 1n;
-    const window = { args: { id }, fromBlock: from, toBlock: end < latest ? end : latest };
+  for (const blocks of blockWindows(latest)) {
+    const window = { args: { id }, ...blocks };
 
     const [created, paid, refunded, cancelled] = await Promise.all([
       client.getContractEvents({ ...contract, eventName: "InvoiceCreated", ...window }),
@@ -66,8 +71,6 @@ async function readRecords(client: PublicClient, id: bigint): Promise<InvoiceRec
 
 // The invoice's transactions. Reloads when its status or refunded total changes.
 export function useInvoiceRecords(invoice: Invoice | undefined) {
-  const client = usePublicClient({ chainId: whitechainSepolia.id });
-
   return useQuery({
     queryKey: [
       "invoice-records",
@@ -75,8 +78,8 @@ export function useInvoiceRecords(invoice: Invoice | undefined) {
       invoice?.status,
       String(invoice?.refunded),
     ],
-    queryFn: () => readRecords(client as PublicClient, invoice?.id as bigint),
-    enabled: Boolean(client) && invoice !== undefined,
+    queryFn: () => readRecords(logsClient, invoice?.id as bigint),
+    enabled: invoice !== undefined,
     staleTime: Infinity,
   });
 }

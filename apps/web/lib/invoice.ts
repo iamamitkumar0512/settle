@@ -8,7 +8,14 @@ import {
 } from "viem";
 import { USDT_DECIMALS } from "./contracts";
 
+export const INVOICE_LIMITS = {
+  merchantNameBytes: 128,
+  customerFieldBytes: 200,
+  memoBytes: 500,
+} as const;
+
 export type InvoiceDetails = {
+  merchantName: string;
   customerName: string;
   customerEmail: string;
   memo: string;
@@ -35,9 +42,9 @@ export function newSalt(): Hex {
 
 // The on-chain ref. The salt stops anyone guessing an email from this public hash.
 export function hashInvoiceDetails(details: InvoiceDetails, salt: Hex): Hex {
-  const { customerName, customerEmail, memo } = details;
+  const { merchantName, customerName, customerEmail, memo } = details;
   return keccak256(
-    stringToHex(JSON.stringify({ customerName, customerEmail, memo, salt })),
+    stringToHex(JSON.stringify({ merchantName, customerName, customerEmail, memo, salt })),
   );
 }
 

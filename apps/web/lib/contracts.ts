@@ -2,8 +2,9 @@ import type { Address } from "viem";
 import { invoiceRegistryAbi } from "./abi/invoiceRegistry";
 import { whitechainSepolia } from "./chains";
 
-export const REGISTRY_ADDRESS: Address =
-  "0x7ac2BbccfF3156ee4f36E41b5091e2b7E02E21bA";
+// The override points the app at a separate deployment for testing.
+export const REGISTRY_ADDRESS = (process.env.NEXT_PUBLIC_REGISTRY_ADDRESS ??
+  "0x7ac2BbccfF3156ee4f36E41b5091e2b7E02E21bA") as Address;
 export const USDT_ADDRESS: Address =
   "0xcedfB56113143d55b2358b8CFbB0dEB5Ad2f55a7";
 

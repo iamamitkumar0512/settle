@@ -1,0 +1,194 @@
+import "server-only";
+import {
+  createPublicClient,
+  createWalletClient,
+  ExpirationTime,
+} from "@arkiv-network/sdk";
+import { rabdi } from "@arkiv-network/sdk/chains";
+import { and, eq } from "@arkiv-network/sdk/query";
+import { addr, bytes, defineSchema, str, u256, u64 } from "@arkiv-network/sdk/schema";
+import { hexToBytes, hexToString, http, stringToBytes, type Address, type Hex } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
+import { getGasPrice } from "viem/actions";
+import { REGISTRY_ADDRESS } from "@/lib/contracts";
+import type { InvoiceCustomer } from "@/lib/merchant-session";
+import {
+  decryptPrivateDetails,
+  encryptPrivateDetails,
+  type PrivateDetails,
+} from "./private-details";
+
+// Rabdi gas estimates can run low, so writes carry a fixed allowance well above the 135k measured.
+const WRITE_GAS = 1_800_000n;
+const MAX_WRITE_COST_WEI = 2_000_000_000_000_000n;
+const PAGE_SIZE = 100;
+
+export const InvoiceRecord = defineSchema("settle_invoice_v1", {
+  registry: addr().indexed(),
+  invoice_id: u64().indexed(),
+  merchant: addr().indexed(),
+  due_at: u64().indexed(),
+  amount_usdt: u256(),
+  merchant_name: str(),
+  public_details: bytes(),
+  private_details: bytes(),
+  private_media_type: str(),
+});
+
+export type InvoiceRecordInput = PrivateDetails & {
+  id: bigint;
+  merchant: Address;
+  amount: bigint;
+  dueAt: bigint;
+  merchantName: string;
+  memo: string;
+};
+
+function connection() {
+  const accessKey = process.env.ARKIV_ACCESS_KEY;
+  if (!accessKey) throw new Error("ARKIV_ACCESS_KEY is not configured");
+  return {
+    chain: rabdi({ accessKey }),
+    transport: http(undefined, { timeout: 30_000, retryCount: 0 }),
+  };
+}
+
+function writerAccount() {
+  const key = process.env.ARKIV_PRIVATE_KEY;
+  if (!key) throw new Error("ARKIV_PRIVATE_KEY is not configured");
+  return privateKeyToAccount((key.startsWith("0x") ? key : `0x${key}`) as Hex);
+}
+
+function arkivReader() {
+  return createPublicClient(connection());
+}
+
+function memoFrom(publicDetails: Hex) {
+  try {
+    const { memo } = JSON.parse(hexToString(publicDetails)) as { memo?: unknown };
+    return typeof memo === "string" ? memo : "";
+  } catch {
+    return "";
+  }
+}
+
+// Every read filters on our writer: anyone can create entities with this schema name.
+export async function invoiceRecordExists(id: bigint) {
+  const page = await arkivReader()
+    .select({ $key: true })
+    .from(InvoiceRecord)
+    .where(and(eq("registry", addr(REGISTRY_ADDRESS)), eq("invoice_id", u64(id))))
+    .createdBy(writerAccount().address)
+    .limit(1)
+    .fetch();
+  return page.entities.length > 0;
+}
+
+export async function readPublicDetails(id: bigint) {
+  const page = await arkivReader()
+    .select({ merchant_name: true, public_details: true })
+    .from(InvoiceRecord)
+    .where(and(eq("registry", addr(REGISTRY_ADDRESS)), eq("invoice_id", u64(id))))
+    .createdBy(writerAccount().address)
+    .limit(1)
+    .fetch();
+  const row = page.entities[0];
+  if (!row) return null;
+  return {
+    merchantName: row.merchant_name.value,
+    memo: memoFrom(row.public_details.value),
+  };
+}
+
+export async function readMerchantCustomers(merchant: Address) {
+  const customers: InvoiceCustomer[] = [];
+  const reader = arkivReader();
+
+  for (let offset = 0; ; offset += PAGE_SIZE) {
+    const page = await reader
+      .select({
+        invoice_id: true,
+        merchant_name: true,
+        public_details: true,
+        private_details: true,
+        private_media_type: true,
+      })
+      .from(InvoiceRecord)
+      .where(and(eq("registry", addr(REGISTRY_ADDRESS)), eq("merchant", addr(merchant))))
+      .createdBy(writerAccount().address)
+      .limit(PAGE_SIZE)
+      .offset(offset)
+      .fetch();
+
+    for (const row of page.entities) {
+      const id = BigInt(row.invoice_id.value);
+      // One unreadable record shouldn't hide the merchant's other customers.
+      const details = await decryptPrivateDetails(
+        id,
+        hexToBytes(row.private_details.value),
+        row.private_media_type.value,
+      ).catch(() => null);
+      customers.push({
+        id: String(id),
+        merchantName: row.merchant_name.value,
+        memo: memoFrom(row.public_details.value),
+        customerName: details?.customerName ?? "",
+        customerEmail: details?.customerEmail ?? "",
+      });
+    }
+
+    if (page.entities.length < PAGE_SIZE) return customers;
+  }
+}
+
+// One wallet has one nonce sequence, so writes in this process go one at a time.
+let lastWrite: Promise<unknown> = Promise.resolve();
+
+function oneAtATime<T>(write: () => Promise<T>) {
+  const next = lastWrite.then(write, write);
+  lastWrite = next.catch(() => undefined);
+  return next;
+}
+
+async function createRecord(input: InvoiceRecordInput) {
+  const { id, merchant, amount, dueAt, merchantName, memo } = input;
+  const { customerName, customerEmail, salt } = input;
+  const { envelope, mediaType } = await encryptPrivateDetails(id, {
+    customerName,
+    customerEmail,
+    salt,
+  });
+
+  const account = writerAccount();
+  const reader = arkivReader();
+  const [gasPrice, nonce] = await Promise.all([
+    getGasPrice(reader),
+    reader.getTransactionCount({ address: account.address, blockTag: "latest" }),
+  ]);
+  if (WRITE_GAS * gasPrice > MAX_WRITE_COST_WEI) {
+    throw new Error("Arkiv gas price is above the write budget");
+  }
+
+  const wallet = createWalletClient({ ...connection(), account });
+  // Never retried here: resending after an uncertain result could write the record twice.
+  return wallet.createEntity(
+    InvoiceRecord,
+    {
+      registry: addr(REGISTRY_ADDRESS),
+      invoice_id: u64(id),
+      merchant: addr(merchant),
+      due_at: u64(dueAt),
+      amount_usdt: u256(amount),
+      merchant_name: str(merchantName),
+      public_details: bytes(stringToBytes(JSON.stringify({ memo }))),
+      private_details: bytes(envelope),
+      private_media_type: str(mediaType),
+    },
+    { expiration: ExpirationTime.max(), flags: { readonly: true } },
+    { gas: WRITE_GAS, gasPrice, nonce },
+  );
+}
+
+export function writeInvoiceRecord(input: InvoiceRecordInput) {
+  return oneAtATime(() => createRecord(input));
+}
