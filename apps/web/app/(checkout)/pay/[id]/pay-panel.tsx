@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { zeroAddress, type Address, type Hash } from "viem";
 import { usePublicClient, useReadContract, useWriteContract } from "wagmi";
 import { AccountMenu } from "@/components/account-menu";
@@ -14,6 +14,7 @@ import { Message } from "@/components/message";
 import { SwitchNetwork } from "@/components/switch-network";
 import { invoiceCalendarFile } from "@/lib/calendar";
 import { whitechainSepolia } from "@/lib/chains";
+import { storeReturnUrl } from "@/lib/checkout";
 import { registry, usdtAbi, USDT_ADDRESS } from "@/lib/contracts";
 import { explorerTxUrl, formatDate, formatUsdt, shortAddress } from "@/lib/format";
 import { InvoiceStatus, type Invoice } from "@/lib/invoice";
@@ -37,7 +38,14 @@ const usdt = {
 
 type Stage = "idle" | "approving" | "approveConfirming" | "paying" | "payConfirming";
 
-type PayProps = { invoice: Invoice; onChanged: () => Promise<unknown> };
+type PayProps = {
+  invoice: Invoice;
+  onChanged: () => Promise<unknown>;
+  // Reports the transaction that paid the invoice, so a store can be told which one it was.
+  onPaid: (payment: Hash) => void;
+};
+
+const RETURN_AFTER_MS = 3000;
 
 function Shell({ children, aside }: { children: React.ReactNode; aside: React.ReactNode }) {
   return (
@@ -133,11 +141,27 @@ function InvoiceSummary({ invoice }: { invoice: Invoice }) {
   );
 }
 
-function PaidCard({ invoice }: { invoice: Invoice }) {
+function PaidCard({ invoice, payment }: { invoice: Invoice; payment?: Hash }) {
   // A shop that sent the customer here can ask for a way back. Only a path on this site is
   // accepted, so a pay link can't be used to send anyone somewhere else.
   const requested = useSearchParams().get("return");
   const returnPath = requested && /^\/(?!\/)[\w\-./?=&%]*$/.test(requested) ? requested : null;
+
+  // A store that created this invoice as an order signed where its customer goes next. The
+  // address is part of what the merchant signed, so nobody else can change it.
+  const { data: details } = useInvoiceDetails(invoice.id);
+  const store = details?.callbackUrl
+    ? storeReturnUrl(details.callbackUrl, invoice.id, payment)
+    : null;
+  const storeHref = store?.toString();
+
+  // Straight after paying, the customer is taken back without having to click. Someone who
+  // opens an old pay link later only gets the button.
+  useEffect(() => {
+    if (!payment || !storeHref) return;
+    const timer = setTimeout(() => window.location.assign(storeHref), RETURN_AFTER_MS);
+    return () => clearTimeout(timer);
+  }, [payment, storeHref]);
 
   return (
     <div className="flex flex-col items-center gap-3 text-center" role="status">
@@ -160,14 +184,22 @@ function PaidCard({ invoice }: { invoice: Invoice }) {
       {invoice.refunded > 0n && (
         <p className="text-refund">{formatUsdt(invoice.refunded)} USDT refunded.</p>
       )}
-      {returnPath && (
+      {store && (
+        <>
+          {payment && <p className="text-muted">Taking you back to {store.host}…</p>}
+          <a href={storeHref} className="btn btn-primary btn-wide">
+            Back to {store.host}
+          </a>
+        </>
+      )}
+      {returnPath && !store && (
         <Link href={returnPath} className="btn btn-primary btn-wide">
           Back to the shop
         </Link>
       )}
       <Link
         href={`/pay/${invoice.id}/receipt`}
-        className={`btn btn-wide ${returnPath ? "" : "btn-primary"}`}
+        className={`btn btn-wide ${returnPath || store ? "" : "btn-primary"}`}
       >
         View receipt
       </Link>
@@ -179,12 +211,12 @@ function PaidCard({ invoice }: { invoice: Invoice }) {
 }
 
 // One signature, no gas: the customer signs and Settle sends the payment.
-function GaslessPay({ invoice, payer, onChanged }: PayProps & { payer: Address }) {
+function GaslessPay({ invoice, payer, onChanged, onPaid }: PayProps & { payer: Address }) {
   const action = useSignedAction();
 
   async function pay() {
     const typed = paymentAuthorization(invoice, payer);
-    await action.run(typed, (signature) =>
+    const sent = await action.run(typed, (signature) =>
       postJson("/api/relay/pay", {
         invoiceId: invoice.id,
         payer,
@@ -193,6 +225,7 @@ function GaslessPay({ invoice, payer, onChanged }: PayProps & { payer: Address }
         ...splitSignature(signature),
       }),
     );
+    if (typeof sent?.txHash === "string") onPaid(sent.txHash as Hash);
     // Also after a failure: someone else may have paid or cancelled it meanwhile.
     await onChanged();
   }
@@ -211,7 +244,7 @@ function GaslessPay({ invoice, payer, onChanged }: PayProps & { payer: Address }
   );
 }
 
-function PayCard({ invoice, onChanged }: PayProps) {
+function PayCard({ invoice, onChanged, onPaid }: PayProps) {
   const session = useSession();
   const quote = useRelayQuote();
   const balance = useUsdtBalance(session.address);
@@ -273,9 +306,9 @@ function PayCard({ invoice, onChanged }: PayProps) {
           </p>
         </>
       ) : gasless ? (
-        <GaslessPay invoice={invoice} payer={payer} onChanged={onChanged} />
+        <GaslessPay invoice={invoice} payer={payer} onChanged={onChanged} onPaid={onPaid} />
       ) : session.kind === "wallet" ? (
-        <DirectPay invoice={invoice} onChanged={onChanged} />
+        <DirectPay invoice={invoice} onChanged={onChanged} onPaid={onPaid} />
       ) : (
         <p role="alert" className="text-[13px]/[18px] text-late">
           Settle can&apos;t send payments right now. Try again later.
@@ -286,7 +319,7 @@ function PayCard({ invoice, onChanged }: PayProps) {
 }
 
 // The wallet approves and pays with its own gas, by choice or when Settle can't relay.
-function DirectPay({ invoice, onChanged }: PayProps) {
+function DirectPay({ invoice, onChanged, onPaid }: PayProps) {
   const client = usePublicClient({ chainId: whitechainSepolia.id });
   const { address } = useSession();
   const write = useWriteContract();
@@ -378,6 +411,7 @@ function DirectPay({ invoice, onChanged }: PayProps) {
     setStage("payConfirming");
     try {
       if (await confirm(hash)) {
+        onPaid(hash);
         await onChanged();
       } else {
         setError("The payment failed. No money moved.");
@@ -437,6 +471,7 @@ function DirectPay({ invoice, onChanged }: PayProps) {
 export function PayPanel() {
   const { id, invoice, state, refetch } = useInvoice();
   const session = useSession();
+  const [payment, setPayment] = useState<Hash>();
 
   if (state === "notFound") {
     return <Message title="Invoice not found" text="Check the link and try again." />;
@@ -466,7 +501,7 @@ export function PayPanel() {
   if (invoice.status !== InvoiceStatus.Open) {
     return (
       <Shell aside={summary}>
-        <PaidCard invoice={invoice} />
+        <PaidCard invoice={invoice} payment={payment} />
       </Shell>
     );
   }
@@ -486,7 +521,7 @@ export function PayPanel() {
           <div className="flex justify-end">
             <AccountMenu />
           </div>
-          <PayCard invoice={invoice} onChanged={refetch} />
+          <PayCard invoice={invoice} onChanged={refetch} onPaid={setPayment} />
         </>
       )}
     </Shell>

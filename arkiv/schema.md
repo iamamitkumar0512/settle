@@ -17,11 +17,11 @@ There are three entity types, all defined in
 | `invoice_id` | `u64` | Yes | Yes | The on-chain invoice id |
 | `merchant` | `addr` | Yes | Yes | The merchant wallet |
 | `due_at` | `u64` | Yes | Yes | Due date in unix seconds |
-| `customer_lookup` | `str` | Yes | Keyed hash | Finds a customer's invoices without storing a readable email or wallet address |
+| `customer_lookup` | `str` | Yes | Keyed hash | Finds a customer's invoices without storing a readable email or wallet address. `none` for a store order that names no customer |
 | `amount_usdt` | `u256` | No | Yes | Amount in USDT, 6 decimals |
 | `merchant_name` | `str` | No | Yes | Business name shown to customers, up to 128 bytes |
-| `public_details` | `bytes` | No | Yes | JSON: `{ memo }` |
-| `private_details` | `bytes` | No | Encrypted | `{ invoiceId, customerName, customerEmail, customerWallet, salt }` |
+| `public_details` | `bytes` | No | Yes | JSON: `{ memo, callbackUrl? }`. `callbackUrl` is where a store wants its customer sent after paying |
+| `private_details` | `bytes` | No | Encrypted | `{ invoiceId, customerName, customerEmail, customerWallet, receipt?, salt }`. `receipt` is a store's own order number |
 | `private_media_type` | `str` | No | Yes | Format of the encrypted data |
 
 ### `settle_invoice_file_v1`: one per attached PDF

@@ -6,6 +6,8 @@ export type PrivateDetails = {
   customerName: string;
   customerEmail: string;
   customerWallet: string;
+  // A store's own order number. Only its merchant reads it back.
+  receipt?: string;
   salt: string;
 };
 
@@ -26,12 +28,13 @@ function pad(json: string) {
 
 // The invoice id is inside the ciphertext, so an envelope copied onto another invoice won't decrypt.
 export async function encryptPrivateDetails(invoiceId: bigint, details: PrivateDetails) {
-  const { customerName, customerEmail, customerWallet, salt } = details;
+  const { customerName, customerEmail, customerWallet, receipt, salt } = details;
   const plaintext = JSON.stringify({
     invoiceId: String(invoiceId),
     customerName,
     customerEmail,
     customerWallet,
+    ...(receipt ? { receipt } : {}),
     salt,
   });
   return {
@@ -55,6 +58,7 @@ export async function decryptPrivateDetails(
       const { invoiceId: id, customerName, customerEmail, salt } = value as Record<string, unknown>;
       // Records from before invoices could be sent to a wallet have no wallet field.
       const customerWallet = (value as Record<string, unknown>).customerWallet ?? "";
+      const { receipt } = value as Record<string, unknown>;
       if (
         id === String(invoiceId) &&
         typeof customerName === "string" &&
@@ -62,7 +66,13 @@ export async function decryptPrivateDetails(
         typeof customerWallet === "string" &&
         typeof salt === "string"
       ) {
-        return { customerName, customerEmail, customerWallet, salt };
+        return {
+          customerName,
+          customerEmail,
+          customerWallet,
+          ...(typeof receipt === "string" ? { receipt } : {}),
+          salt,
+        };
       }
     }
   } catch {

@@ -104,6 +104,10 @@ export type InvoiceDetails = {
   customerEmail: string;
   customerWallet: string;
   memo: string;
+  /** The store's own order number. */
+  receipt?: string;
+  /** Where the store wants its customer sent after paying. */
+  callbackUrl?: string;
 };
 
 // An invoice goes to an email address or to a wallet address. The other field stays empty.
@@ -121,8 +125,13 @@ export function parseCustomer(text: string) {
 export function hashInvoiceDetails(details: InvoiceDetails, salt: Hex): Hex {
   const { merchantName, customerName, customerEmail, customerWallet, memo } = details;
   const customer = customerWallet ? { customerEmail, customerWallet } : { customerEmail };
+  // A field joins the hash only when it is set, so the merchant's signature covers it.
+  const order = {
+    ...(details.receipt ? { receipt: details.receipt } : {}),
+    ...(details.callbackUrl ? { callbackUrl: details.callbackUrl } : {}),
+  };
   return keccak256(
-    stringToHex(JSON.stringify({ merchantName, customerName, ...customer, memo, salt })),
+    stringToHex(JSON.stringify({ merchantName, customerName, ...customer, memo, ...order, salt })),
   );
 }
 

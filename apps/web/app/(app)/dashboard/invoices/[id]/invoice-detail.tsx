@@ -150,6 +150,11 @@ function Detail({ invoice, onChanged }: { invoice: Invoice; onChanged: () => Pro
             <span className={`pill ${state.tone}`}>{state.label}</span>
           </div>
           {details?.memo && <p className="mt-2">{details.memo}</p>}
+          {customer?.receipt && (
+            <p className="mt-1 text-muted">
+              Order reference <span className="figure text-ink">{customer.receipt}</span>
+            </p>
+          )}
           {customer?.customerName && (
             <p className="mt-1 text-muted">
               {customer.customerName}

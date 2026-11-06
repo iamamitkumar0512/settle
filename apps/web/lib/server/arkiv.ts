@@ -10,6 +10,7 @@ import { addr, bytes, defineSchema, str, u256, u64 } from "@arkiv-network/sdk/sc
 import { hexToBytes, hexToString, http, stringToBytes, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { getGasPrice } from "viem/actions";
+import { isValidCallbackUrl } from "@/lib/checkout";
 import { REGISTRY_ADDRESS, SUBSCRIPTIONS_ADDRESS } from "@/lib/contracts";
 import type { CustomerInvoice, InvoiceCustomer } from "@/lib/customer-invoices";
 import type { PlanDetails } from "@/lib/subscription";
@@ -85,6 +86,7 @@ type InvoiceRecordInput = PrivateDetails & {
   dueAt: bigint;
   merchantName: string;
   memo: string;
+  callbackUrl?: string;
 };
 
 function connection() {
@@ -106,13 +108,21 @@ function arkivReader() {
   return createPublicClient(connection());
 }
 
-function memoFrom(publicDetails: Hex) {
+function publicFrom(publicDetails: Hex) {
   try {
-    const { memo } = JSON.parse(hexToString(publicDetails)) as { memo?: unknown };
-    return typeof memo === "string" ? memo : "";
+    const { memo, callbackUrl } = JSON.parse(hexToString(publicDetails)) as Record<string, unknown>;
+    return {
+      memo: typeof memo === "string" ? memo : "",
+      // Checked again on the way out: this is where a paying customer gets sent.
+      ...(typeof callbackUrl === "string" && isValidCallbackUrl(callbackUrl) ? { callbackUrl } : {}),
+    };
   } catch {
-    return "";
+    return { memo: "" };
   }
+}
+
+function memoFrom(publicDetails: Hex) {
+  return publicFrom(publicDetails).memo;
 }
 
 // Every read filters on our writer: anyone can create entities with this schema name.
@@ -139,7 +149,7 @@ export async function readPublicDetails(id: bigint) {
   if (!row) return null;
   return {
     merchantName: row.merchant_name.value,
-    memo: memoFrom(row.public_details.value),
+    ...publicFrom(row.public_details.value),
   };
 }
 
@@ -289,6 +299,7 @@ export async function readMerchantCustomers(merchant: Address) {
         customerName: details?.customerName ?? "",
         customerEmail: details?.customerEmail ?? "",
         customerWallet: details?.customerWallet ?? "",
+        receipt: details?.receipt ?? "",
         linkKey: payLinkKey(id),
       });
     }
@@ -375,15 +386,23 @@ async function writer() {
   };
 }
 
+// Real lookups are 64 hex characters, so this can never match one.
+const NO_CUSTOMER = "none";
+
 async function createRecord(input: InvoiceRecordInput) {
-  const { id, merchant, amount, dueAt, merchantName, memo } = input;
-  const { customerName, customerEmail, customerWallet, salt } = input;
+  const { id, merchant, amount, dueAt, merchantName, memo, callbackUrl } = input;
+  const { customerName, customerEmail, customerWallet, receipt, salt } = input;
   const { envelope, mediaType } = await encryptPrivateDetails(id, {
     customerName,
     customerEmail,
     customerWallet,
+    receipt,
     salt,
   });
+  // A store's order may name no customer. Nobody can look such an order up by customer.
+  let lookup = NO_CUSTOMER;
+  if (customerWallet) lookup = walletLookup(customerWallet);
+  else if (customerEmail) lookup = customerLookup(customerEmail);
 
   const { wallet, transaction } = await writer();
   // Never retried here: resending after an uncertain result could write the record twice.
@@ -394,12 +413,12 @@ async function createRecord(input: InvoiceRecordInput) {
       invoice_id: u64(id),
       merchant: addr(merchant),
       due_at: u64(dueAt),
-      customer_lookup: str(
-        customerWallet ? walletLookup(customerWallet) : customerLookup(customerEmail),
-      ),
+      customer_lookup: str(lookup),
       amount_usdt: u256(amount),
       merchant_name: str(merchantName),
-      public_details: bytes(stringToBytes(JSON.stringify({ memo }))),
+      public_details: bytes(
+        stringToBytes(JSON.stringify({ memo, ...(callbackUrl ? { callbackUrl } : {}) })),
+      ),
       private_details: bytes(envelope),
       private_media_type: str(mediaType),
     },

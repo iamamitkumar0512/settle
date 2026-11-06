@@ -65,11 +65,18 @@ export type NewInvoice = {
   dueAt: Date;
   /** The name your customer sees on the pay page. */
   businessName: string;
-  /** Your customer's email or wallet address. It is how they find the invoice in Settle. */
-  customer: string;
+  /**
+   * Your customer's email or wallet address. It is how they find the invoice in Settle. Leave it
+   * out for a store order that whoever checks out will pay.
+   */
+  customer?: string;
   customerName?: string;
   /** What the invoice is for. Shown on the pay page. */
   memo?: string;
+  /** Your own order number. Only you see it, in the dashboard and the CSV export. */
+  receipt?: string;
+  /** Where your customer goes after paying. It must be https. */
+  callbackUrl?: string;
 };
 
 export type CreatedInvoice = {
@@ -176,7 +183,9 @@ export class Settle {
   /** Creates an invoice and returns the link your customer pays at. */
   async createInvoice(invoice: NewInvoice): Promise<CreatedInvoice> {
     const account = this.#signer();
-    const customer = parseCustomer(invoice.customer);
+    const customer = invoice.customer
+      ? parseCustomer(invoice.customer)
+      : { customerEmail: "", customerWallet: "" };
     if (!customer) throw new SettleError("invalid_customer");
 
     const { invoiceFee } = await this.quote();
@@ -185,6 +194,8 @@ export class Settle {
       customerName: invoice.customerName ?? "",
       ...customer,
       memo: invoice.memo ?? "",
+      ...(invoice.receipt ? { receipt: invoice.receipt } : {}),
+      ...(invoice.callbackUrl ? { callbackUrl: invoice.callbackUrl } : {}),
     };
     const detailsSalt = randomBytes32();
     const request = {

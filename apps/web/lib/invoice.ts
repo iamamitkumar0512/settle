@@ -14,6 +14,8 @@ export const INVOICE_LIMITS = {
   merchantNameBytes: 128,
   customerFieldBytes: 200,
   memoBytes: 500,
+  receiptBytes: 64,
+  callbackUrlBytes: 300,
 } as const;
 
 export function isValidEmail(email: string) {
@@ -21,12 +23,17 @@ export function isValidEmail(email: string) {
 }
 
 // An invoice is sent to an email address or to a wallet address. The other one stays empty.
+// A store's order may name no customer at all: whoever checks out pays it.
 export type InvoiceDetails = {
   merchantName: string;
   customerName: string;
   customerEmail: string;
   customerWallet: string;
   memo: string;
+  // The store's own order number, for its records.
+  receipt?: string;
+  // Where the store wants its customer sent after paying.
+  callbackUrl?: string;
 };
 
 // Reads what a merchant typed as the email or the wallet address it is.
@@ -60,10 +67,15 @@ export function newSalt(): Hex {
 // The on-chain ref. The salt stops anyone guessing an email from this public hash.
 export function hashInvoiceDetails(details: InvoiceDetails, salt: Hex): Hex {
   const { merchantName, customerName, customerEmail, customerWallet, memo } = details;
-  // An invoice sent to an email hashes exactly as it always has. One sent to a wallet adds it.
+  // An invoice sent to an email hashes exactly as it always has. A field added later joins the
+  // hash only when it is set, so the merchant's signature covers it and old invoices still match.
   const customer = customerWallet ? { customerEmail, customerWallet } : { customerEmail };
+  const order = {
+    ...(details.receipt ? { receipt: details.receipt } : {}),
+    ...(details.callbackUrl ? { callbackUrl: details.callbackUrl } : {}),
+  };
   return keccak256(
-    stringToHex(JSON.stringify({ merchantName, customerName, ...customer, memo, salt })),
+    stringToHex(JSON.stringify({ merchantName, customerName, ...customer, memo, ...order, salt })),
   );
 }
 
