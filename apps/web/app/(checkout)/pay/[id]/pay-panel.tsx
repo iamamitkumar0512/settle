@@ -1,20 +1,27 @@
 "use client";
 
 import Link from "next/link";
+import { QRCodeSVG } from "qrcode.react";
 import { useState } from "react";
-import { zeroAddress, type Hash } from "viem";
-import { useConnection, usePublicClient, useReadContract, useWriteContract } from "wagmi";
+import { zeroAddress, type Address, type Hash } from "viem";
+import { usePublicClient, useReadContract, useWriteContract } from "wagmi";
+import { AccountMenu } from "@/components/account-menu";
+import { LoginCard } from "@/components/login-card";
 import { Message } from "@/components/message";
-import { WalletButton } from "@/components/wallet-button";
+import { SwitchNetwork } from "@/components/switch-network";
 import { whitechainSepolia } from "@/lib/chains";
 import { registry, usdtAbi, USDT_ADDRESS } from "@/lib/contracts";
 import { explorerTxUrl, formatDate, formatUsdt, shortAddress } from "@/lib/format";
 import { InvoiceStatus, type Invoice } from "@/lib/invoice";
+import { postJson, splitSignature } from "@/lib/relay-client";
+import { paymentAuthorization } from "@/lib/typed-data";
 import { useInvoice } from "@/lib/use-invoice";
 import { useInvoiceDetails } from "@/lib/use-invoice-details";
+import { useRelayQuote } from "@/lib/use-relay-quote";
+import { useSession } from "@/lib/use-session";
+import { useSignedAction } from "@/lib/use-signed-action";
+import { useUsdtBalance } from "@/lib/use-usdt-balance";
 import { isInsufficientGas, isUserRejection, revertName } from "@/lib/wallet-errors";
-
-const REFRESH_MS = 15_000;
 
 const usdt = {
   address: USDT_ADDRESS,
@@ -23,6 +30,8 @@ const usdt = {
 } as const;
 
 type Stage = "idle" | "approving" | "approveConfirming" | "paying" | "payConfirming";
+
+type PayProps = { invoice: Invoice; onChanged: () => Promise<unknown> };
 
 function Shell({ children, aside }: { children: React.ReactNode; aside: React.ReactNode }) {
   return (
@@ -103,30 +112,146 @@ function PaidCard({ invoice }: { invoice: Invoice }) {
       <Link href={`/pay/${invoice.id}/receipt`} className="btn btn-primary btn-wide">
         View receipt
       </Link>
+      <Link href="/pay" className="text-[13px]/[18px] text-accent-text">
+        See all your invoices
+      </Link>
     </div>
   );
 }
 
-function PayFlow({
-  invoice,
-  onChanged,
-}: {
-  invoice: Invoice;
-  onChanged: () => Promise<unknown>;
-}) {
+// One signature, no gas: the customer signs and Settle sends the payment.
+function GaslessPay({ invoice, payer, onChanged }: PayProps & { payer: Address }) {
+  const action = useSignedAction();
+
+  async function pay() {
+    const typed = paymentAuthorization(invoice, payer);
+    await action.run(typed, (signature) =>
+      postJson("/api/relay/pay", {
+        invoiceId: invoice.id,
+        payer,
+        validAfter: typed.message.validAfter,
+        validBefore: typed.message.validBefore,
+        ...splitSignature(signature),
+      }),
+    );
+    // Also after a failure: someone else may have paid or cancelled it meanwhile.
+    await onChanged();
+  }
+
+  return (
+    <>
+      <button type="button" className="btn btn-primary btn-wide" disabled={action.busy} onClick={pay}>
+        {action.label(`Pay ${formatUsdt(invoice.amount)} USDT`, "Sending your payment…")}
+      </button>
+      {action.error && (
+        <p role="alert" className="text-[13px]/[18px] text-late">
+          {action.error}
+        </p>
+      )}
+    </>
+  );
+}
+
+// An email account is topped up by sending USDT to its address. The balance refreshes by itself.
+function AddUsdt({ address, missing }: { address: Address; missing: bigint }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copy() {
+    await navigator.clipboard.writeText(address);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p>
+        Add <span className="figure">{formatUsdt(missing)} USDT</span> to pay this invoice.
+      </p>
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="rounded-[10px] bg-white p-2">
+          <QRCodeSVG value={address} size={104} title="Your wallet address" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[13px]/[18px] text-muted">Send USDT on Whitechain to</div>
+          <div className="figure mt-0.5 text-[13px]/[18px] break-all">{address}</div>
+          <button type="button" className="btn mt-3" onClick={copy}>
+            {copied ? "Copied" : "Copy address"}
+          </button>
+        </div>
+      </div>
+      <p role="status" className="text-[13px]/[18px] text-muted">
+        Waiting for your USDT. This page updates when it arrives.
+      </p>
+    </div>
+  );
+}
+
+function PayCard({ invoice, onChanged }: PayProps) {
+  const session = useSession();
+  const quote = useRelayQuote();
+  const balance = useUsdtBalance(session.address);
+
+  if (!session.address || balance.data === undefined || quote.isPending) {
+    return <p className="text-center text-muted">Checking your balance…</p>;
+  }
+
+  const payer = session.address;
+  const hasFunds = balance.data >= invoice.amount;
+  const gasless =
+    quote.available && invoice.relayFee >= quote.relayFee && invoice.amount >= quote.minInvoice;
+
+  return (
+    <>
+      <h1 className="display text-[22px]/[30px]">Confirm payment</h1>
+      <div className="well flex flex-col gap-2">
+        <div className="flex justify-between gap-4">
+          <span className="text-muted">Your balance</span>
+          <span className="figure">{formatUsdt(balance.data)} USDT</span>
+        </div>
+        <div className="flex justify-between gap-4">
+          <span className="text-muted">You pay</span>
+          <span className="figure">{formatUsdt(invoice.amount)} USDT</span>
+        </div>
+        {gasless && (
+          <div className="flex justify-between gap-4">
+            <span className="text-muted">Network fee</span>
+            <span>Free</span>
+          </div>
+        )}
+      </div>
+      {!hasFunds && session.kind === "email" ? (
+        <AddUsdt address={payer} missing={invoice.amount - balance.data} />
+      ) : !hasFunds ? (
+        <>
+          <button type="button" className="btn btn-primary btn-wide" disabled>
+            Not enough USDT
+          </button>
+          <p className="text-center text-[13px]/[18px] text-muted">
+            You need {formatUsdt(invoice.amount - balance.data)} more USDT in this wallet.
+          </p>
+        </>
+      ) : gasless ? (
+        <GaslessPay invoice={invoice} payer={payer} onChanged={onChanged} />
+      ) : session.kind === "wallet" ? (
+        <DirectPay invoice={invoice} onChanged={onChanged} />
+      ) : (
+        <p role="alert" className="text-[13px]/[18px] text-late">
+          Settle can&apos;t send payments right now. Try again later.
+        </p>
+      )}
+    </>
+  );
+}
+
+// The fallback when Settle can't relay: the wallet approves and pays with its own gas.
+function DirectPay({ invoice, onChanged }: PayProps) {
   const client = usePublicClient({ chainId: whitechainSepolia.id });
-  const { address } = useConnection();
+  const { address } = useSession();
   const write = useWriteContract();
   const [stage, setStage] = useState<Stage>("idle");
   const [error, setError] = useState<string>();
   const [sentHash, setSentHash] = useState<Hash>();
 
-  const balance = useReadContract({
-    ...usdt,
-    functionName: "balanceOf",
-    args: [address ?? zeroAddress],
-    query: { enabled: Boolean(address), refetchInterval: REFRESH_MS },
-  });
   const allowance = useReadContract({
     ...usdt,
     functionName: "allowance",
@@ -223,57 +348,35 @@ function PayFlow({
     setStage("idle");
   }
 
-  if (balance.data === undefined || allowance.data === undefined) {
-    return <p className="text-center text-muted">Checking your balance…</p>;
+  if (allowance.data === undefined) {
+    return <p className="text-center text-muted">Checking your wallet…</p>;
   }
 
-  const hasFunds = balance.data >= invoice.amount;
   const isApproved = allowance.data >= invoice.amount;
 
   return (
     <>
-      <h1 className="display text-[22px]/[30px]">Confirm payment</h1>
-      <div className="well flex flex-col gap-2">
-        <div className="flex justify-between gap-4">
-          <span className="text-muted">Your balance</span>
-          <span className="figure">{formatUsdt(balance.data)} USDT</span>
-        </div>
-        <div className="flex justify-between gap-4">
-          <span className="text-muted">You pay</span>
-          <span className="figure">{amount} USDT</span>
-        </div>
-      </div>
-      {!hasFunds ? (
-        <>
-          <button type="button" className="btn btn-primary btn-wide" disabled>
-            Not enough USDT
-          </button>
-          <p className="text-center text-[13px]/[18px] text-muted">
-            You need {formatUsdt(invoice.amount - balance.data)} more USDT in this wallet.
-          </p>
-        </>
+      <p className="text-[13px]/[18px] text-muted">
+        This payment uses your wallet&apos;s own WBT for gas.
+      </p>
+      <ol className="flex gap-2 text-[13px]/[18px]" aria-label="Payment steps">
+        <li className={`flex-1 border-t-2 pt-1.5 ${isApproved ? "border-accent-text" : "border-line"}`}>
+          1. Approve USDT
+        </li>
+        <li className="flex-1 border-t-2 border-line pt-1.5">2. Pay</li>
+      </ol>
+      {isApproved ? (
+        <button type="button" className="btn btn-primary btn-wide" disabled={busy} onClick={pay}>
+          {stage === "paying" && "Confirm in your wallet"}
+          {stage === "payConfirming" && "Sending your payment…"}
+          {stage === "idle" && `Pay ${amount} USDT`}
+        </button>
       ) : (
-        <>
-          <ol className="flex gap-2 text-[13px]/[18px]" aria-label="Payment steps">
-            <li className={`flex-1 border-t-2 pt-1.5 ${isApproved ? "border-accent-text" : "border-line"}`}>
-              1. Approve USDT
-            </li>
-            <li className="flex-1 border-t-2 border-line pt-1.5">2. Pay</li>
-          </ol>
-          {isApproved ? (
-            <button type="button" className="btn btn-primary btn-wide" disabled={busy} onClick={pay}>
-              {stage === "paying" && "Confirm in your wallet"}
-              {stage === "payConfirming" && "Sending your payment…"}
-              {stage === "idle" && `Pay ${amount} USDT`}
-            </button>
-          ) : (
-            <button type="button" className="btn btn-primary btn-wide" disabled={busy} onClick={approve}>
-              {stage === "approving" && "Confirm in your wallet"}
-              {stage === "approveConfirming" && "Approving…"}
-              {stage === "idle" && `Approve ${amount} USDT`}
-            </button>
-          )}
-        </>
+        <button type="button" className="btn btn-primary btn-wide" disabled={busy} onClick={approve}>
+          {stage === "approving" && "Confirm in your wallet"}
+          {stage === "approveConfirming" && "Approving…"}
+          {stage === "idle" && `Approve ${amount} USDT`}
+        </button>
       )}
       {error && (
         <p role="alert" className="text-[13px]/[18px] text-late">
@@ -291,7 +394,7 @@ function PayFlow({
 
 export function PayPanel() {
   const { id, invoice, state, refetch } = useInvoice();
-  const { chainId, status } = useConnection();
+  const session = useSession();
 
   if (state === "notFound") {
     return <Message title="Invoice not found" text="Check the link and try again." />;
@@ -326,23 +429,21 @@ export function PayPanel() {
     );
   }
 
-  const ready = status === "connected" && chainId === whitechainSepolia.id;
-
   return (
     <Shell aside={summary}>
-      {ready ? (
+      {session.status === "loading" ? (
+        <p className="text-center text-muted">Loading…</p>
+      ) : session.status === "signedOut" ? (
+        <LoginCard title="Log in to pay" />
+      ) : !session.isOnWhitechain ? (
+        <SwitchNetwork />
+      ) : (
         <>
           <div className="flex justify-end">
-            <WalletButton />
+            <AccountMenu />
           </div>
-          <PayFlow invoice={invoice} onChanged={refetch} />
+          <PayCard invoice={invoice} onChanged={refetch} />
         </>
-      ) : (
-        <div className="flex flex-col items-center gap-3 text-center">
-          <h1 className="display text-[22px]/[30px]">Pay from your wallet</h1>
-          <p className="text-muted">Connect MetaMask or Rabby to pay this invoice.</p>
-          <WalletButton />
-        </div>
       )}
     </Shell>
   );

@@ -1,4 +1,7 @@
-export default function PayLayout({ children }: LayoutProps<"/pay">) {
+import type { ReactNode } from "react";
+
+// Public pages a customer opens from a link: lighter, with no app navigation.
+export default function CheckoutLayout({ children }: { children: ReactNode }) {
   return (
     <div data-theme="light" className="theme-root flex min-h-dvh flex-col">
       {children}
