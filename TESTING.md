@@ -72,7 +72,7 @@ amounts below let one customer account finish every step with a single top-up.
 | Press **Create invoice** | "Creating invoice…" for a few seconds, then the invoice with a **Copy pay link** button. No wallet popup. **Email only.** |
 | Press **Copy pay link** | "Link copied". Keep this link for Part 3. |
 | Go back to Invoices | The invoice is listed as "Due soon". Outstanding shows 1.00. |
-| Press **New invoice** again | The business name is already filled in as `Chai Point`. |
+| Press **New invoice** again | An empty form, not the last invoice. The business name is already filled in as `Chai Point`. |
 
 ## Part 3: The customer pays
 
@@ -85,7 +85,7 @@ amounts below let one customer account finish every step with a single top-up.
 | Press it again | "You've had today's test money. Try again tomorrow." |
 | Go back to the pay link and press **Pay 1.00 USDT** | "Sending your payment…", then "Payment complete". No popup and no gas. **Email only.** |
 | Press **View receipt** | A receipt showing "You paid 1.00 USDT", "Paid to Chai Point", and a "Proof on Whitechain" link that opens the explorer. |
-| Open `/pay` | The invoice under "Past invoices" as Paid. |
+| Press **See all your payments** on the receipt | "Your payments", with the invoice under "Past invoices" as Paid. **Payments** is highlighted in the menu. |
 
 **Live:** save the explorer link from this receipt. It is your gasless payment proof.
 
@@ -104,12 +104,16 @@ amounts below let one customer account finish every step with a single top-up.
 | Do this | You should see |
 |---|---|
 | Create an invoice for `1.00`, sent to the customer's email, due tomorrow | It is listed as "Due soon". |
-| In the customer window, open `/dashboard` | A banner: "An invoice from Chai Point is due soon", with **Pay now**. The menu shows "To pay" with a count of 1. |
+| In the customer window, open `/dashboard` | A banner: "An invoice from Chai Point is due soon", with **Pay now**. The menu shows "Payments" with a count of 1. |
 | Press **Dismiss** | The banner goes. It returns only if something new becomes due. |
 | In the merchant window, open that invoice and press **Remind customer** | The reminder message, with three choices: **Email it from Settle**, **Open in my mail app**, **Copy message**. |
 | Press **Open in my mail app** | Your mail app opens with the customer, subject and message filled in. |
-| Press **Email it from Settle** | "Sent to" the customer. This sends a real email through Resend. Without a verified domain, Resend only delivers to your own Resend address. |
+| Press **Email it from Settle** with no domain verified in Resend | "Email from Settle is in test mode and can't reach this address yet." The mail app and copy options stay on screen. Your terminal prints `Email not sent: Resend only delivers to its account's own address…`. |
+| To see a real send, create an invoice whose customer email is the one your Resend account uses, and press **Email it from Settle** on it | "Sent to" that address, and the email arrives. Resend allows this address without a domain. |
 | Press it again after reloading | "A reminder already went out today." |
+
+To email any customer, verify a domain in Resend and set `REMINDER_FROM` to an address on it. See
+[`DEPLOY.md`](DEPLOY.md).
 
 Cancel this invoice afterwards, so it stops showing as due.
 
@@ -133,8 +137,17 @@ Keep this invoice. Part 13 uses it to check where the PDF is stored and who can 
 | Choose 3 payments and press **Subscribe for 1.00 USDT** | "You're subscribed". The first payment is taken at once. **Email only.** |
 | Merchant: reload Plans after a minute | The subscriber shows "Due now" and a **Collect now** button. |
 | Press **Collect now** | The payment is collected, and "Payments left" drops. |
-| Customer: open `/pay` | "Tea club from Chai Point" under Subscriptions, with a **Cancel** button. |
-| Press **Cancel** | The subscription ends. |
+| Customer: open **Payments** | "Tea club from Chai Point" under Subscriptions, marked Active, with a **Cancel** button. |
+| Press **Cancel** | It stays listed, marked Cancelled: "Cancelled <time> by you. Nothing more will be taken." The Cancel button is gone. |
+| Press **History and proof** | Each step, newest first, with its explorer link: the cancel, each payment, and the start. |
+| Merchant: reload Plans | Under the plan, the subscriber reads "Cancelled by the customer" with how many payments were made and the proof link. |
+
+Subscribe again and let the merchant press **Cancel** instead. The merchant then reads "Cancelled by
+you", and the customer reads "by the business".
+
+**On the explorer.** These steps are not in the customer's or merchant's own Transactions tab,
+because Settle's relayer sends them. Open **History and proof** to reach them. Payments also show
+in the customer's Token transfers tab. A cancel moves no money, so it shows in neither place.
 
 **Live:** note three explorer links here, for subscribe, collect and cancel. The README has none yet.
 
@@ -284,7 +297,7 @@ the webhook address and the webhook log. Customer details are encrypted before t
 | Where | What came from Arkiv |
 |---|---|
 | Part 3, the pay page | "Chai Point is requesting", and what the invoice is for. |
-| Part 5, the customer's banner and "To pay" count | Settle found the invoice with an Arkiv query on a hash of the customer's email. Nobody sent a link. |
+| Part 5, the customer's banner and "Payments" count | Settle found the invoice with an Arkiv query on a hash of the customer's email. Nobody sent a link. |
 | Part 2, the merchant's Invoices list | Customer names, read from Arkiv and decrypted on the server. |
 | Part 10, the webhook log on Developers | Each delivery is an Arkiv record that deletes itself after 7 days. |
 
@@ -417,6 +430,7 @@ Open the app on your phone, or use your browser's phone view.
 | "Enter a public https address." when saving a webhook | Local addresses are refused unless `WEBHOOK_ALLOW_LOCAL=true`. | Set it locally only. |
 | "Too many requests." | More than 30 requests a minute from one address. | Wait a minute. |
 | Customer names show as "Hidden" | A wallet account hasn't signed in yet. | Press **Show customer details**. |
+| "Email from Settle is in test mode…" | Resend only delivers to its own account's address until a domain is verified. | Use the mail app or copy options, or verify a domain and set `REMINDER_FROM`. |
 | `Set SETTLE_BASE_URL, SETTLE_KEY_ID and SETTLE_KEY_SECRET…` | The SDK example found no keys. | Fill in `apps/shop/.env`, as in Part 10. |
 | `Stopped: Couldn't reach Settle. (network)` | The app isn't running, or `SETTLE_BASE_URL` is wrong. | Start the app. Check the address in `apps/shop/.env`. |
 | `Set ARKIV_ACCESS_KEY.` | The Arkiv query found no access key. | Run it with `--env-file=apps/web/.env`, as written. |
@@ -438,6 +452,8 @@ These ran on a local copy of Whitechain Sepolia with the real test USDT.
 | The store receiving a real webhook | 5 |
 | The SDK example from a terminal, paid and refunded | 5 |
 | A PDF from the form to Swarm and back, for four kinds of visitor | 7 |
+| Starting fresh on New invoice and New plan | 7 |
+| The receipt link, every answer the email service can give, and a subscription's record | 32 |
 
 The commands in Parts 11, 12 and 13 were each run as written. For one test PDF of 193 bytes,
 Swarm held 221 bytes that did not start with `%PDF`, and the Arkiv query did not contain the

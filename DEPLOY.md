@@ -25,7 +25,7 @@ Only you can do these, because they need your accounts, keys or funds.
 | 7 | A second Settle account, made with an email used only for the store | Its keys go into the store. |
 | 8 | An npm account | To publish `settle-pay`. Optional, but the docs tell developers to install it. |
 | 9 | A Swarm postage batch, from the Swarm booth | Optional. Needed for the Swarm bonus. |
-| 10 | A domain verified in Resend | Optional. Without it, emails only reach your own Resend address. |
+| 10 | A domain verified in Resend | Optional. Without it, emails only reach your own Resend address, and "Email it from Settle" tells a merchant it is in test mode. The mail app and copy options still work. |
 
 The relayer wallet is `0x21dc07cFe6Aa4f141b5950CFb72F310F5817836C`.
 
@@ -55,7 +55,7 @@ Add these settings before the first build.
 | `CRON_SECRET` | Recommended | Any long random text. It protects the two daily jobs. |
 | `SWARM_BEE_URL`, `SWARM_BATCH_ID` | Optional | PDF invoices. The upload field is hidden without both. |
 | `RESEND_API_KEY` | Optional | Reminder emails. |
-| `REMINDER_FROM` | Optional | A sender on your verified Resend domain. |
+| `REMINDER_FROM` | Optional | A sender on your verified Resend domain, for example `Settle <hello@yourdomain.com>`. Needed before reminders reach customers. |
 | `NEXT_PUBLIC_RPC_URL` | Optional | Browser RPC. Anything here is visible to visitors. |
 
 To make a `CRON_SECRET`:

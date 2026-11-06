@@ -150,7 +150,7 @@ could attach it to a plan of their own.
 Reminders work with no outside service, so they also reach a customer who was billed to a wallet
 address and has no email on file.
 
-- **In the app.** "To pay" in the menu shows how many invoices the account still owes. A banner on
+- **In the app.** "Payments" in the menu shows how many invoices the account still owes. A banner on
   every page names what is overdue or due within three days, with a button straight to the pay
   page. It reads the due dates from the contract, so nothing is stored for it.
 - **From the merchant.** An open invoice has a Remind customer button. It writes the message with
