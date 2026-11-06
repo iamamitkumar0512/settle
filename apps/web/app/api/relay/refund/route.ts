@@ -1,6 +1,14 @@
+import { after } from "next/server";
 import { registry } from "@/lib/contracts";
-import { checkWindow, relayRoute, uintField, vrsFields } from "@/lib/server/relay-http";
+import {
+  checkWindow,
+  relayRoute,
+  requestOrigin,
+  uintField,
+  vrsFields,
+} from "@/lib/server/relay-http";
 import { readInvoice, relay, spendFreeRelay } from "@/lib/server/relayer";
+import { announceTransaction } from "@/lib/server/webhooks";
 
 export const maxDuration = 60;
 
@@ -25,6 +33,8 @@ export async function POST(request: Request) {
       functionName: "refundWithAuthorization",
       args: [id, amount, validAfter, validBefore, v, r, s],
     });
+    const origin = requestOrigin(request);
+    after(() => announceTransaction(hash, origin));
     return { txHash: hash };
   });
 }

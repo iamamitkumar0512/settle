@@ -22,6 +22,7 @@ skills-lock.json
 
 # node
 node_modules/
+packages/sdk/dist/
 
 # misc
 .DS_Store

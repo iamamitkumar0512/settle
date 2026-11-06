@@ -9,7 +9,7 @@ lets the customer pay without holding WBT for gas.
 > **Status:** built for ETHGlobal Mumbai 2026. Both contracts are live and verified on Whitechain
 > Sepolia, and invoices have been created, paid and refunded there without the customer or the
 > merchant holding gas. Built: email or wallet login, the merchant dashboard, pay page, receipts,
-> refunds, CSV export, the relayer, Arkiv records, PDF invoices on Swarm, an SDK and a demo shop.
+> refunds, CSV export, the relayer, Arkiv records, PDF invoices on Swarm, an SDK and a demo store.
 > Subscriptions are built too: plans, a subscribe page, collection of due payments and cancel.
 > Reminders are built: in the app for the customer, a Remind button for the merchant and a calendar
 > file, with automatic email as an extra that needs an email key. See
@@ -62,7 +62,7 @@ sent by the relayer, `0x21dc…836C`.
  │ browser wallet       │            │                       │            │  GaslessTransfer    │
  └──────────────────────┘            │ invoice details ──────┼──▶ Arkiv   │  USDT               │
                                      │ encrypted PDFs ───────┼──▶ Swarm   └─────────────────────┘
- Another app's server ──@settle/sdk─▶│                       │                       ▲
+ A store's server ─────settle-pay───▶│                       │                       ▲
                                      └───────────────────────┘                       │
         browsers and the SDK read invoices straight from the contract ───────────────┘
 ```
@@ -148,9 +148,9 @@ balance, and it stops relaying below 0.005 WBT.
 
 The contract holds the money and status. Arkiv holds each invoice's business name and description,
 plus encrypted customer details that only the merchant can read. It also holds each subscription
-plan's name and description. A customer finds their invoices
-by the email or wallet address they were sent to. Details are in
-[`arkiv/schema.md`](arkiv/schema.md).
+plan's name and description, each merchant's encrypted webhook settings, and a delivery log that
+Arkiv drops after 7 days. A customer finds their invoices by the email or wallet address they were
+sent to. Details are in [`arkiv/schema.md`](arkiv/schema.md).
 
 - **Network:** Arkiv Rabdi testnet, chain `7794095`
 - **Wallet that writes entities:** `0x7d404608B53998044fDDf5d07f6da8092d155278`
@@ -169,18 +169,43 @@ deployment, add its address: `0x0862eb825530db019ed13dbb1a1ef0c6567ba25e`.
 
 The query filters on the writer wallet, because anyone can create entities with the same schema name.
 
-## SDK and demo shop
+## SDK and demo store
 
-[`@settle/sdk`](packages/sdk) lets another app take USDT through Settle. Its server signs with the
-merchant's wallet and Settle's relayer submits, so there are no API keys and no gas.
+The Settle app is the product: every feature lives there. The SDK is the piece any website adds to
+accept payment, and those payments land in the same app.
 
-```ts
-const order = await settle.createInvoice({ amount: "3.00", dueAt, businessName, customer, memo });
-redirect(order.payUrl);
+A store takes USDT through Settle the way it would take cards through a payment gateway. The
+server creates an order, [`checkout.js`](apps/web/public/checkout.js) opens Settle Checkout over the
+store's page, and the server verifies the payment against the chain.
+
+```js
+// server
+const settle = new Settle({ keyId, keySecret, businessName: "Chai Point" });
+const order = await settle.orders.create({ amount: "3.00", receipt: "order_42" });
+const payment = await settle.payments.verify(response);
 ```
 
-The demo shop at `/shop` is built only on the SDK. Its orders show in the Settle dashboard for the
-shop's wallet, because both read the same contract.
+```html
+<!-- browser -->
+<script src="https://<your Settle>/checkout.js"></script>
+<script>
+  new Settle.Checkout({ orderId, handler: (response) => confirmOnServer(response) }).open();
+</script>
+```
+
+Settle also tells the store's server by signed webhook, even if the customer closes their browser.
+Each event is built from the transaction on Whitechain, so nothing a caller says can invent one.
+The store's address and secret are set on the app's Developers page, which also shows each delivery
+and can resend a failed one.
+
+[`settle-pay`](packages/sdk) also covers refunds, payment links and withdrawals. Everything it makes
+shows in the Settle dashboard for the same account, because both read the same contract. A business
+with no website can do all of this from the dashboard instead. Keys are on the app's Developers
+page.
+
+[`apps/shop`](apps/shop) is Chai Point, a separate store that shows this working. It has its own
+site and its own server. It takes a payment in 22 lines of Settle code and gets webhooks in 6 more,
+and it prints those lines on its own page.
 
 ## PDF invoices on Swarm
 
@@ -198,8 +223,9 @@ contracts/
   src/IUSDT.sol              the USDT functions Settle uses
   test/                      fork tests against the real USDT
   script/                    deployment, Whitechain Sepolia only
-apps/web/                    Next.js dashboard, pay pages, API routes and the demo shop
-packages/sdk/                @settle/sdk, for taking payments from another app
+apps/web/                    the Settle app: dashboard, pay pages, API routes, checkout.js
+apps/shop/                   Chai Point, a separate demo store built on the SDK
+packages/sdk/                settle-pay, the SDK a store installs to take payments
 arkiv/                       Arkiv schema, feedback and track notes
 ```
 
@@ -220,7 +246,14 @@ pnpm install
 pnpm dev
 ```
 
-To deploy it, see [`DEPLOY.md`](DEPLOY.md).
+To run the demo store beside it, copy `apps/shop/.env.example` to `apps/shop/.env` and fill in the
+keys from the app's Developers page. It runs on port 3100:
+
+```bash
+pnpm dev:store
+```
+
+To deploy both, see [`DEPLOY.md`](DEPLOY.md).
 
 ## Current limitations
 
@@ -239,8 +272,12 @@ To deploy it, see [`DEPLOY.md`](DEPLOY.md).
   assume a single running copy of the app.
 - Email login has been used on the live chain less than wallet login. A wallet customer sees one
   signature prompt; an email customer sees none.
-- The SDK needs a wallet whose key the merchant holds. A merchant who signed up by email can't use
-  it yet.
+- An email merchant reveals their Key Secret through the login provider's window. That path has not
+  been run end to end yet. The SDK is not on npm until the app has its deployed address.
+- A store's order is created on-chain when checkout starts, so an abandoned cart costs the relayer
+  gas. It is capped per merchant per day.
+- A webhook is tried 3 times over a few seconds. After that the merchant resends it by hand. There
+  is no webhook for a subscription charge yet.
 - Encrypted customer details are stored on public Arkiv. This uses sample data on testnet and should
   move off Arkiv before real customers use it. See [`arkiv/why-arkiv.md`](arkiv/why-arkiv.md).
 - Arkiv records last about 182 days, and nothing renews them yet.

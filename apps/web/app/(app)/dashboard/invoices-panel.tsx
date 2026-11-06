@@ -201,6 +201,9 @@ function InvoiceRow({
             {customer && customerContact(customer) && (
               <div className="text-[13px]/[18px] text-muted">{customerContact(customer)}</div>
             )}
+            {customer?.receipt && (
+              <div className="text-[13px]/[18px] text-muted">Order {customer.receipt}</div>
+            )}
           </>
         ) : (
           <span className="text-muted">Hidden</span>
@@ -318,6 +321,7 @@ function InvoiceList() {
       customer?.customerName,
       customer?.customerEmail,
       customer?.customerWallet,
+      customer?.receipt,
     ].some((value) => value?.toLowerCase().includes(term));
   });
 

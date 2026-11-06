@@ -18,7 +18,8 @@ is that merchants don't own their records. A better version would let them own t
 
 **Expiry.** Invoice records use the longest allowed lifetime, about 182 days. That suits a testnet app
 and an invoice's working life, but real accounting records last for years. Nothing renews them yet,
-and that would be needed before real use.
+and that would be needed before real use. Webhook deliveries are the opposite case: they use a
+7-day lifetime, because a delivery log only matters for a short time.
 
 ## Does each Arkiv feature change something users see?
 
@@ -32,7 +33,7 @@ and that would be needed before real use.
 | Encrypted `bytes` column | Customers show as "Hidden" until the merchant signs in |
 | Creator filter | A stranger's fake entity with our schema name never appears on a pay page |
 | `readonly` | No visible control, but the details a customer saw can't change later |
-| Expiration | Nothing today. After about 182 days the app would fall back to addresses |
+| Expiration | A merchant's recent deliveries show the last 7 days, with no cleanup job. After about 182 days an invoice would fall back to addresses |
 
 ## How a plan record is written
 

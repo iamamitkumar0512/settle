@@ -2,6 +2,8 @@ import { parseAbi } from "viem";
 
 // Where Settle is deployed: Whitechain Sepolia.
 export const DEFAULTS = {
+  // Filled in when Settle is deployed. Until then `baseUrl` must be passed.
+  baseUrl: "",
   chainId: 1874,
   rpcUrl: "https://rpc.testnet.whitechain.io",
   registryAddress: "0x4c6F09e112CaF53f2922b382DafD8Aa95826628F",
@@ -16,6 +18,7 @@ export const USDT_DECIMALS = 6;
 export const registryAbi = parseAbi([
   "function nextId() view returns (uint256)",
   "function invoices(uint256 id) view returns (address merchant, address payer, uint256 amount, uint256 refunded, uint64 dueAt, uint64 paidAt, uint8 status, bytes32 ref, uint256 relayFee)",
+  "event InvoicePaid(uint256 indexed id, address indexed merchant, address indexed payer, uint256 amount, uint256 relayFee, bool gasless)",
 ]);
 
 export const usdtAbi = parseAbi(["function balanceOf(address account) view returns (uint256)"]);

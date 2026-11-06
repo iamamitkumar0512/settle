@@ -1,5 +1,6 @@
 import "server-only";
 import { isAddress, isHex, type Hex } from "viem";
+import { isValidCallbackUrl } from "@/lib/checkout";
 import { INVOICE_LIMITS, isValidEmail, type InvoiceDetails } from "@/lib/invoice";
 
 function utf8Bytes(value: string) {
@@ -26,13 +27,24 @@ export function parseInvoiceDetails(
   ) {
     return null;
   }
-  // Exactly one of the two says who the invoice is for.
-  const hasCustomer = customerWallet
+  // A store's order adds its own order number and where to send the customer afterwards.
+  const { receipt, callbackUrl } = body as Record<string, unknown>;
+  if (receipt !== undefined) {
+    const isPlain = typeof receipt === "string" && /^[\x20-\x7e]+$/.test(receipt);
+    if (!isPlain || receipt.length > INVOICE_LIMITS.receiptBytes) return null;
+  }
+  if (callbackUrl !== undefined) {
+    if (typeof callbackUrl !== "string" || !isValidCallbackUrl(callbackUrl)) return null;
+    if (utf8Bytes(callbackUrl) > INVOICE_LIMITS.callbackUrlBytes) return null;
+  }
+
+  // At most one of the two says who the invoice is for. An order may leave both empty.
+  const customerIsValid = customerWallet
     ? customerEmail === "" && isAddress(customerWallet)
-    : isValidEmail(customerEmail);
+    : customerEmail === "" || isValidEmail(customerEmail);
   if (
     merchantName.trim().length === 0 ||
-    !hasCustomer ||
+    !customerIsValid ||
     utf8Bytes(merchantName) > INVOICE_LIMITS.merchantNameBytes ||
     utf8Bytes(customerName) > INVOICE_LIMITS.customerFieldBytes ||
     utf8Bytes(customerEmail) > INVOICE_LIMITS.customerFieldBytes ||
@@ -40,5 +52,14 @@ export function parseInvoiceDetails(
   ) {
     return null;
   }
-  return { merchantName, customerName, customerEmail, customerWallet, memo, salt };
+  return {
+    merchantName,
+    customerName,
+    customerEmail,
+    customerWallet,
+    memo,
+    ...(receipt ? { receipt } : {}),
+    ...(callbackUrl ? { callbackUrl } : {}),
+    salt,
+  };
 }

@@ -1,27 +1,26 @@
-// Creates an invoice and waits for it to be paid.
-//   SETTLE_URL=https://<your Settle> MERCHANT_KEY=0x... CUSTOMER=you@example.com pnpm --filter @settle/sdk example
-import { privateKeyToAccount } from "viem/accounts";
-import { formatUsdt, Settle } from "../src";
+// Creates an order, prints its pay link, then confirms the payment once it arrives.
+//   SETTLE_URL=https://<your Settle> SETTLE_KEY_ID=0x... SETTLE_KEY_SECRET=... pnpm --filter settle-pay example
+import Settle from "../src";
 
-const { SETTLE_URL, MERCHANT_KEY, CUSTOMER } = process.env;
-if (!SETTLE_URL || !MERCHANT_KEY || !CUSTOMER) {
-  console.error("Set SETTLE_URL, MERCHANT_KEY and CUSTOMER.");
+const { SETTLE_URL, SETTLE_KEY_ID, SETTLE_KEY_SECRET } = process.env;
+if (!SETTLE_URL || !SETTLE_KEY_ID || !SETTLE_KEY_SECRET) {
+  console.error("Set SETTLE_URL, SETTLE_KEY_ID and SETTLE_KEY_SECRET.");
   process.exit(1);
 }
 
 const settle = new Settle({
   baseUrl: SETTLE_URL,
-  account: privateKeyToAccount(MERCHANT_KEY as `0x${string}`),
-});
-
-const order = await settle.createInvoice({
-  amount: "3.00",
-  dueAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+  keyId: SETTLE_KEY_ID,
+  keySecret: SETTLE_KEY_SECRET,
   businessName: "Chai Point",
-  customer: CUSTOMER,
-  memo: "Masala chai blend",
 });
-console.log(`Invoice #${order.id} created. Pay it at:\n${order.payUrl}`);
 
-const paid = await settle.waitForPayment(order.id);
-console.log(`Paid ${formatUsdt(paid.amount)} USDT by ${paid.payer}.`);
+const order = await settle.orders.create({
+  amount: "3.00",
+  description: "Masala chai blend",
+  receipt: "order_42",
+});
+console.log(`Order ${order.id} created. Pay it at:\n${order.payUrl}`);
+
+const paid = await settle.orders.waitForPayment(order.id);
+console.log(`Paid ${paid.amount} ${paid.currency} by ${paid.payer}.`);

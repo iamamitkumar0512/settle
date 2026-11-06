@@ -16,6 +16,8 @@ export type InvoiceCustomer = {
   customerName: string;
   customerEmail: string;
   customerWallet: string;
+  // The store's own order number, when a store created the invoice as an order.
+  receipt: string;
   // Goes on the end of the pay link, so its holder can open the invoice's PDF.
   linkKey: string;
 };

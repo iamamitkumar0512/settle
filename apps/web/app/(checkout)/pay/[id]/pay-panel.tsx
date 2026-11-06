@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { zeroAddress, type Address, type Hash } from "viem";
 import { usePublicClient, useReadContract, useWriteContract } from "wagmi";
 import { AccountMenu } from "@/components/account-menu";
@@ -14,6 +14,7 @@ import { Message } from "@/components/message";
 import { SwitchNetwork } from "@/components/switch-network";
 import { invoiceCalendarFile } from "@/lib/calendar";
 import { whitechainSepolia } from "@/lib/chains";
+import { checkoutOpenerOrigin, storeReturnUrl } from "@/lib/checkout";
 import { registry, usdtAbi, USDT_ADDRESS } from "@/lib/contracts";
 import { explorerTxUrl, formatDate, formatUsdt, shortAddress } from "@/lib/format";
 import { InvoiceStatus, type Invoice } from "@/lib/invoice";
@@ -22,6 +23,7 @@ import { postJson, splitSignature } from "@/lib/relay-client";
 import { paymentAuthorization } from "@/lib/typed-data";
 import { useInvoice } from "@/lib/use-invoice";
 import { useInvoiceDetails } from "@/lib/use-invoice-details";
+import { useInvoiceRecords } from "@/lib/use-invoice-records";
 import { useNow } from "@/lib/use-now";
 import { useRelayQuote } from "@/lib/use-relay-quote";
 import { useSession } from "@/lib/use-session";
@@ -37,17 +39,42 @@ const usdt = {
 
 type Stage = "idle" | "approving" | "approveConfirming" | "paying" | "payConfirming";
 
-type PayProps = { invoice: Invoice; onChanged: () => Promise<unknown> };
+type PayProps = {
+  invoice: Invoice;
+  onChanged: () => Promise<unknown>;
+  // Reports the transaction that paid the invoice, so a store can be told which one it was.
+  onPaid: (payment: Hash) => void;
+};
 
-function Shell({ children, aside }: { children: React.ReactNode; aside: React.ReactNode }) {
+const RETURN_AFTER_MS = 3000;
+const CLOSE_AFTER_MS = 1500;
+
+type StoreWindow = { window: Window; origin: string };
+
+function Shell({
+  children,
+  aside,
+  compact,
+}: {
+  children: React.ReactNode;
+  aside: React.ReactNode;
+  // Checkout's small window, which must show the pay button without scrolling.
+  compact?: boolean;
+}) {
   return (
-    <main className="mx-auto grid w-full max-w-[1040px] flex-1 content-center items-center gap-10 px-4 py-10 md:grid-cols-[minmax(0,1fr)_420px] md:gap-14 md:px-8">
+    <main
+      className={
+        compact
+          ? "mx-auto flex w-full max-w-[480px] flex-1 flex-col gap-4 px-4 py-4"
+          : "mx-auto grid w-full max-w-[1040px] flex-1 content-center items-center gap-10 px-4 py-10 md:grid-cols-[minmax(0,1fr)_420px] md:gap-14 md:px-8"
+      }
+    >
       <section aria-label="Invoice" className="flex flex-col gap-6">
         {aside}
       </section>
       <section
         aria-label="Payment"
-        className="card flex min-h-[320px] flex-col justify-center gap-4 p-6"
+        className={`card flex flex-col justify-center gap-4 ${compact ? "p-5" : "min-h-[320px] p-6"}`}
       >
         {children}
       </section>
@@ -57,10 +84,12 @@ function Shell({ children, aside }: { children: React.ReactNode; aside: React.Re
 
 // Saves the due date to the customer's own calendar, which then reminds them by itself.
 function AddToCalendar({ invoice }: { invoice: Invoice }) {
-  const { data: details } = useInvoiceDetails(invoice.id);
+  const { data: details, isPending } = useInvoiceDetails(invoice.id);
   const linkKey = usePayLinkKey();
   const now = useNow(60_000);
 
+  // A store's order is paid at checkout, so there is nothing to remember.
+  if (isPending || details?.callbackUrl) return null;
   if (invoice.status !== InvoiceStatus.Open || invoice.dueAt <= now) return null;
 
   function download() {
@@ -90,6 +119,21 @@ function AddToCalendar({ invoice }: { invoice: Invoice }) {
     >
       Add to calendar
     </button>
+  );
+}
+
+// What checkout's small window shows: who is being paid, for what, and how much.
+function OrderSummary({ invoice }: { invoice: Invoice }) {
+  const { data: details } = useInvoiceDetails(invoice.id);
+
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <div className="min-w-0">
+        <div className="font-semibold">{details?.merchantName ?? `Order #${invoice.id}`}</div>
+        {details?.memo && <p className="text-[13px]/[18px] text-muted">{details.memo}</p>}
+      </div>
+      <div className="figure text-xl whitespace-nowrap">{formatUsdt(invoice.amount)} USDT</div>
+    </div>
   );
 }
 
@@ -133,11 +177,63 @@ function InvoiceSummary({ invoice }: { invoice: Invoice }) {
   );
 }
 
-function PaidCard({ invoice }: { invoice: Invoice }) {
-  // A shop that sent the customer here can ask for a way back. Only a path on this site is
-  // accepted, so a pay link can't be used to send anyone somewhere else.
-  const requested = useSearchParams().get("return");
-  const returnPath = requested && /^\/(?!\/)[\w\-./?=&%]*$/.test(requested) ? requested : null;
+// The store page that opened this one with checkout.js. Null on an ordinary visit, and when the
+// store's page is gone or its browser settings cut the link: those customers return by address.
+function useStoreWindow(): StoreWindow | null {
+  const params = useSearchParams();
+  const [store] = useState(() => {
+    const isPopup = params.get("popup") === "1";
+    const origin = isPopup ? checkoutOpenerOrigin(params.get("origin")) : null;
+    return origin && window.opener ? { window: window.opener as Window, origin } : null;
+  });
+  return store;
+}
+
+// Tells the store's page about the payment, then closes this window. An order paid earlier isn't
+// in this page's memory, so its payment comes from the chain.
+function ReportToStore({
+  invoice,
+  store,
+  payment,
+}: {
+  invoice: Invoice;
+  store: StoreWindow;
+  payment?: Hash;
+}) {
+  const records = useInvoiceRecords(invoice);
+  const paymentId = payment ?? records.data?.paid?.hash;
+
+  useEffect(() => {
+    if (!paymentId) return;
+    store.window.postMessage(
+      { type: "settle:paid", settle_order_id: String(invoice.id), settle_payment_id: paymentId },
+      store.origin,
+    );
+    const timer = setTimeout(() => window.close(), CLOSE_AFTER_MS);
+    return () => clearTimeout(timer);
+  }, [invoice.id, paymentId, store]);
+
+  return <p className="text-muted">Taking you back to {new URL(store.origin).host}…</p>;
+}
+
+function PaidCard({ invoice, payment }: { invoice: Invoice; payment?: Hash }) {
+  const opener = useStoreWindow();
+
+  // A store that created this invoice as an order signed where its customer goes next. The
+  // address is part of what the merchant signed, so nobody else can change it.
+  const { data: details } = useInvoiceDetails(invoice.id);
+  const store = details?.callbackUrl
+    ? storeReturnUrl(details.callbackUrl, invoice.id, payment)
+    : null;
+  const storeHref = store?.toString();
+
+  // Straight after paying, the customer is taken back without having to click. Someone who
+  // opens an old pay link later only gets the button.
+  useEffect(() => {
+    if (opener || !payment || !storeHref) return;
+    const timer = setTimeout(() => window.location.assign(storeHref), RETURN_AFTER_MS);
+    return () => clearTimeout(timer);
+  }, [opener, payment, storeHref]);
 
   return (
     <div className="flex flex-col items-center gap-3 text-center" role="status">
@@ -160,31 +256,40 @@ function PaidCard({ invoice }: { invoice: Invoice }) {
       {invoice.refunded > 0n && (
         <p className="text-refund">{formatUsdt(invoice.refunded)} USDT refunded.</p>
       )}
-      {returnPath && (
-        <Link href={returnPath} className="btn btn-primary btn-wide">
-          Back to the shop
-        </Link>
+      {opener ? (
+        <ReportToStore invoice={invoice} store={opener} payment={payment} />
+      ) : (
+        <>
+          {store && (
+            <>
+              {payment && <p className="text-muted">Taking you back to {store.host}…</p>}
+              <a href={storeHref} className="btn btn-primary btn-wide">
+                Back to {store.host}
+              </a>
+            </>
+          )}
+          <Link
+            href={`/pay/${invoice.id}/receipt`}
+            className={`btn btn-wide ${store ? "" : "btn-primary"}`}
+          >
+            View receipt
+          </Link>
+          <Link href="/pay" className="text-[13px]/[18px] text-accent-text">
+            See all your invoices
+          </Link>
+        </>
       )}
-      <Link
-        href={`/pay/${invoice.id}/receipt`}
-        className={`btn btn-wide ${returnPath ? "" : "btn-primary"}`}
-      >
-        View receipt
-      </Link>
-      <Link href="/pay" className="text-[13px]/[18px] text-accent-text">
-        See all your invoices
-      </Link>
     </div>
   );
 }
 
 // One signature, no gas: the customer signs and Settle sends the payment.
-function GaslessPay({ invoice, payer, onChanged }: PayProps & { payer: Address }) {
+function GaslessPay({ invoice, payer, onChanged, onPaid }: PayProps & { payer: Address }) {
   const action = useSignedAction();
 
   async function pay() {
     const typed = paymentAuthorization(invoice, payer);
-    await action.run(typed, (signature) =>
+    const sent = await action.run(typed, (signature) =>
       postJson("/api/relay/pay", {
         invoiceId: invoice.id,
         payer,
@@ -193,6 +298,7 @@ function GaslessPay({ invoice, payer, onChanged }: PayProps & { payer: Address }
         ...splitSignature(signature),
       }),
     );
+    if (typeof sent?.txHash === "string") onPaid(sent.txHash as Hash);
     // Also after a failure: someone else may have paid or cancelled it meanwhile.
     await onChanged();
   }
@@ -211,7 +317,7 @@ function GaslessPay({ invoice, payer, onChanged }: PayProps & { payer: Address }
   );
 }
 
-function PayCard({ invoice, onChanged }: PayProps) {
+function PayCard({ invoice, onChanged, onPaid }: PayProps) {
   const session = useSession();
   const quote = useRelayQuote();
   const balance = useUsdtBalance(session.address);
@@ -273,9 +379,9 @@ function PayCard({ invoice, onChanged }: PayProps) {
           </p>
         </>
       ) : gasless ? (
-        <GaslessPay invoice={invoice} payer={payer} onChanged={onChanged} />
+        <GaslessPay invoice={invoice} payer={payer} onChanged={onChanged} onPaid={onPaid} />
       ) : session.kind === "wallet" ? (
-        <DirectPay invoice={invoice} onChanged={onChanged} />
+        <DirectPay invoice={invoice} onChanged={onChanged} onPaid={onPaid} />
       ) : (
         <p role="alert" className="text-[13px]/[18px] text-late">
           Settle can&apos;t send payments right now. Try again later.
@@ -286,7 +392,7 @@ function PayCard({ invoice, onChanged }: PayProps) {
 }
 
 // The wallet approves and pays with its own gas, by choice or when Settle can't relay.
-function DirectPay({ invoice, onChanged }: PayProps) {
+function DirectPay({ invoice, onChanged, onPaid }: PayProps) {
   const client = usePublicClient({ chainId: whitechainSepolia.id });
   const { address } = useSession();
   const write = useWriteContract();
@@ -378,6 +484,9 @@ function DirectPay({ invoice, onChanged }: PayProps) {
     setStage("payConfirming");
     try {
       if (await confirm(hash)) {
+        // This payment never passed through Settle, so its webhook needs announcing.
+        void postJson("/api/webhooks/notify", { txHash: hash });
+        onPaid(hash);
         await onChanged();
       } else {
         setError("The payment failed. No money moved.");
@@ -437,6 +546,8 @@ function DirectPay({ invoice, onChanged }: PayProps) {
 export function PayPanel() {
   const { id, invoice, state, refetch } = useInvoice();
   const session = useSession();
+  const [payment, setPayment] = useState<Hash>();
+  const compact = useSearchParams().get("popup") === "1";
 
   if (state === "notFound") {
     return <Message title="Invoice not found" text="Check the link and try again." />;
@@ -461,18 +572,22 @@ export function PayPanel() {
     );
   }
 
-  const summary = <InvoiceSummary invoice={invoice} />;
+  const summary = compact ? (
+    <OrderSummary invoice={invoice} />
+  ) : (
+    <InvoiceSummary invoice={invoice} />
+  );
 
   if (invoice.status !== InvoiceStatus.Open) {
     return (
-      <Shell aside={summary}>
-        <PaidCard invoice={invoice} />
+      <Shell aside={summary} compact={compact}>
+        <PaidCard invoice={invoice} payment={payment} />
       </Shell>
     );
   }
 
   return (
-    <Shell aside={summary}>
+    <Shell aside={summary} compact={compact}>
       {session.status === "loading" ? (
         <p className="text-center text-muted">Loading…</p>
       ) : session.status === "signedOut" ? (
@@ -486,7 +601,7 @@ export function PayPanel() {
           <div className="flex justify-end">
             <AccountMenu />
           </div>
-          <PayCard invoice={invoice} onChanged={refetch} />
+          <PayCard invoice={invoice} onChanged={refetch} onPaid={setPayment} />
         </>
       )}
     </Shell>

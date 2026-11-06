@@ -5,6 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 type PublicDetails = {
   merchantName: string;
   memo: string;
+  // Set when a store created the invoice as an order: where its customer goes after paying.
+  callbackUrl?: string;
   hasPdf: boolean;
 };
 
