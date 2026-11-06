@@ -60,6 +60,33 @@ and who is subscribed. Arkiv holds what a customer reads before subscribing.
 | `plan_name` | `str` | No | Yes | Plan name, up to 128 bytes |
 | `public_details` | `bytes` | No | Yes | JSON: `{ description }` |
 
+### `settle_webhook_v1`: one per save of a merchant's webhook settings
+
+| Column | Type | Indexed | Public | Purpose |
+|---|---|---|---|---|
+| `registry` | `addr` | Yes | Yes | Which `InvoiceRegistry` deployment it belongs to |
+| `merchant` | `addr` | Yes | Yes | The merchant wallet |
+| `saved_at` | `u64` | Yes | Yes | When it was saved. The newest record wins |
+| `private_details` | `bytes` | No | Encrypted | `{ merchant, url, secret }`. An empty `url` means the webhook was removed |
+| `private_media_type` | `str` | No | Yes | Format of the encrypted data |
+
+### `settle_webhook_delivery_v1`: one per send of an event
+
+| Column | Type | Indexed | Public | Purpose |
+|---|---|---|---|---|
+| `registry` | `addr` | Yes | Yes | Which `InvoiceRegistry` deployment it belongs to |
+| `merchant` | `addr` | Yes | Yes | The merchant wallet |
+| `event_id` | `str` | Yes | Yes | The event. Built from the transaction, so a delivered event isn't sent twice |
+| `delivered` | `u64` | Yes | Yes | 1 if the merchant's server accepted it |
+| `sent_at` | `u64` | Yes | Yes | When it was sent |
+| `event_type` | `str` | No | Yes | `order.paid`, `refund.created` or `webhook.test` |
+| `invoice_id` | `u64` | No | Yes | The on-chain invoice id, or 0 for a test event |
+| `status_code` | `u64` | No | Yes | What the merchant's server answered, or 0 for no answer |
+| `attempts` | `u64` | No | Yes | How many tries it took |
+
+The delivery log holds only what the chain already shows, plus the fact that a delivery was tried.
+The address and the secret are never in it.
+
 ## Fields we query
 
 | Query | Filters | Used by |
@@ -93,6 +120,9 @@ wrong creator returned nothing.
 Records use `ExpirationTime.max()`, 7,884,000 blocks. At Rabdi's 2-second blocks, that's about 182
 days. Nothing extends them yet, so a record disappears from current reads after that. The invoice and
 its payment remain on Whitechain, and the app falls back to showing addresses.
+
+Webhook deliveries are the exception. They use `ExpirationTime.fromDays(7)`, so the log cleans itself
+up with no job of ours, and the Developers page says so.
 
 ## Example
 

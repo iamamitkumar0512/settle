@@ -1,8 +1,17 @@
+import { after } from "next/server";
 import { registry } from "@/lib/contracts";
 import { InvoiceStatus } from "@/lib/invoice";
-import { addressField, checkWindow, relayRoute, uintField, vrsFields } from "@/lib/server/relay-http";
+import {
+  addressField,
+  checkWindow,
+  relayRoute,
+  requestOrigin,
+  uintField,
+  vrsFields,
+} from "@/lib/server/relay-http";
 import { coversOpenInvoice, relayFees } from "@/lib/server/gas-fee";
 import { MIN_INVOICE, readInvoice, relay, RelayError } from "@/lib/server/relayer";
+import { announceTransaction } from "@/lib/server/webhooks";
 
 export const maxDuration = 60;
 
@@ -37,6 +46,9 @@ export async function POST(request: Request) {
         functionName: "payWithAuthorization",
         args: [id, payer, validAfter, validBefore, v, r, s],
       });
+      // After the response, so the merchant's server can't slow the customer down.
+      const origin = requestOrigin(request);
+      after(() => announceTransaction(hash, origin));
       return { txHash: hash };
     } finally {
       inFlight.delete(key);

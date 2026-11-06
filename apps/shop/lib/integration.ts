@@ -9,6 +9,11 @@ const FILES = [
   { file: "app/thanks/page.tsx", purpose: "Verify the payment before confirming" },
 ];
 
+const WEBHOOK_FILE = {
+  file: "app/api/webhooks/settle/route.ts",
+  purpose: "Optional: get told by webhook",
+};
+
 // The Settle code in one of this store's files: whatever sits between its region markers.
 function settleLines(file: string) {
   const lines = readFileSync(path.join(process.cwd(), file), "utf8").split("\n");
@@ -23,8 +28,11 @@ function settleLines(file: string) {
 // Read from the real files when the page is built, so what it shows can't drift from the code.
 export function storeIntegration() {
   const parts = FILES.map(({ file, purpose }) => ({ file, purpose, lines: settleLines(file) }));
+  const webhook = { ...WEBHOOK_FILE, lines: settleLines(WEBHOOK_FILE.file) };
   return {
     parts,
+    webhook,
     lineCount: parts.flatMap(({ lines }) => lines).filter(Boolean).length,
+    webhookLineCount: webhook.lines.filter(Boolean).length,
   };
 }

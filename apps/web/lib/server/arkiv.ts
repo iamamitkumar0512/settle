@@ -5,7 +5,7 @@ import {
   ExpirationTime,
 } from "@arkiv-network/sdk";
 import { rabdi } from "@arkiv-network/sdk/chains";
-import { and, eq } from "@arkiv-network/sdk/query";
+import { and, desc, eq } from "@arkiv-network/sdk/query";
 import { addr, bytes, defineSchema, str, u256, u64 } from "@arkiv-network/sdk/schema";
 import { hexToBytes, hexToString, http, stringToBytes, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
@@ -19,8 +19,11 @@ import { FILE_ENCRYPTION } from "./invoice-file";
 import { payLinkKey } from "./pay-link";
 import {
   decryptPrivateDetails,
+  decryptWebhookDetails,
   encryptPrivateDetails,
+  encryptWebhookDetails,
   type PrivateDetails,
+  type WebhookDetails,
 } from "./private-details";
 
 // Rabdi gas estimates can run low, so writes carry a fixed allowance well above the 135k measured.
@@ -71,6 +74,43 @@ const PlanRecord = defineSchema("settle_plan_v1", {
   plan_name: str(),
   public_details: bytes(),
 });
+
+// Where a merchant's webhooks go. A save writes a new record and the newest one wins, so removing
+// a webhook is a record with no address.
+const WebhookRecord = defineSchema("settle_webhook_v1", {
+  registry: addr().indexed(),
+  merchant: addr().indexed(),
+  saved_at: u64().indexed(),
+  private_details: bytes(),
+  private_media_type: str(),
+});
+
+// One try at sending an event. Merchants read these to see what reached their server, and Arkiv
+// drops them after a week, so the log never needs cleaning up.
+const WebhookDelivery = defineSchema("settle_webhook_delivery_v1", {
+  registry: addr().indexed(),
+  merchant: addr().indexed(),
+  event_id: str().indexed(),
+  delivered: u64().indexed(),
+  sent_at: u64().indexed(),
+  event_type: str(),
+  invoice_id: u64(),
+  status_code: u64(),
+  attempts: u64(),
+});
+
+const DELIVERY_LOG_DAYS = 7;
+const RECENT_DELIVERIES = 20;
+
+export type WebhookDeliveryRecord = {
+  eventId: string;
+  eventType: string;
+  orderId: string;
+  delivered: boolean;
+  statusCode: number;
+  attempts: number;
+  sentAt: string;
+};
 
 type PlanRecordInput = PlanDetails & {
   id: bigint;
@@ -181,7 +221,76 @@ export async function readInvoiceContact(id: bigint) {
     memo: memoFrom(row.public_details.value),
     customerName: details?.customerName ?? "",
     customerEmail: details?.customerEmail ?? "",
+    receipt: details?.receipt ?? "",
   };
+}
+
+// A merchant's webhook, or null if they have none. Only the server reads the secret from here.
+export async function readWebhook(merchant: Address): Promise<WebhookDetails | null> {
+  const page = await arkivReader()
+    .select({ private_details: true, private_media_type: true })
+    .from(WebhookRecord)
+    .where(and(eq("registry", addr(REGISTRY_ADDRESS)), eq("merchant", addr(merchant))))
+    .createdBy(writerAccount().address)
+    .orderBy(desc("saved_at"))
+    .limit(1)
+    .fetch();
+  const row = page.entities[0];
+  if (!row) return null;
+
+  const details = await decryptWebhookDetails(
+    merchant,
+    hexToBytes(row.private_details.value),
+    row.private_media_type.value,
+  );
+  return details.url ? details : null;
+}
+
+export async function readWebhookDeliveries(merchant: Address): Promise<WebhookDeliveryRecord[]> {
+  const page = await arkivReader()
+    .select({
+      event_id: true,
+      event_type: true,
+      invoice_id: true,
+      delivered: true,
+      status_code: true,
+      attempts: true,
+      sent_at: true,
+    })
+    .from(WebhookDelivery)
+    .where(and(eq("registry", addr(REGISTRY_ADDRESS)), eq("merchant", addr(merchant))))
+    .createdBy(writerAccount().address)
+    .orderBy(desc("sent_at"))
+    .limit(RECENT_DELIVERIES)
+    .fetch();
+  return page.entities.map((row) => ({
+    eventId: row.event_id.value,
+    eventType: row.event_type.value,
+    orderId: String(row.invoice_id.value),
+    delivered: BigInt(row.delivered.value) === 1n,
+    statusCode: Number(row.status_code.value),
+    attempts: Number(row.attempts.value),
+    sentAt: new Date(Number(row.sent_at.value) * 1000).toISOString(),
+  }));
+}
+
+// Whether an event already reached the merchant, so a second announcement sends nothing.
+export async function webhookWasDelivered(merchant: Address, eventId: string) {
+  const page = await arkivReader()
+    .select({ $key: true })
+    .from(WebhookDelivery)
+    .where(
+      and(
+        eq("registry", addr(REGISTRY_ADDRESS)),
+        eq("merchant", addr(merchant)),
+        eq("event_id", str(eventId)),
+        eq("delivered", u64(1n)),
+      ),
+    )
+    .createdBy(writerAccount().address)
+    .limit(1)
+    .fetch();
+  return page.entities.length > 0;
 }
 
 export async function readInvoiceFile(id: bigint) {
@@ -429,6 +538,63 @@ async function createRecord(input: InvoiceRecordInput) {
     { expiration: ExpirationTime.max(), flags: { readonly: true } },
     transaction,
   );
+}
+
+async function createWebhookRecord(merchant: Address, details: WebhookDetails) {
+  const { envelope, mediaType } = await encryptWebhookDetails(merchant, details);
+  const { wallet, transaction } = await writer();
+  // Never retried here, for the same reason as above.
+  return wallet.createEntity(
+    WebhookRecord,
+    {
+      registry: addr(REGISTRY_ADDRESS),
+      merchant: addr(merchant),
+      saved_at: u64(BigInt(Math.floor(Date.now() / 1000))),
+      private_details: bytes(envelope),
+      private_media_type: str(mediaType),
+    },
+    { expiration: ExpirationTime.max(), flags: { readonly: true } },
+    transaction,
+  );
+}
+
+export function writeWebhook(merchant: Address, details: WebhookDetails) {
+  return oneAtATime(() => createWebhookRecord(merchant, details));
+}
+
+type DeliveryInput = {
+  merchant: Address;
+  eventId: string;
+  eventType: string;
+  orderId: bigint;
+  delivered: boolean;
+  statusCode: number;
+  attempts: number;
+};
+
+async function createDeliveryRecord(input: DeliveryInput) {
+  const { wallet, transaction } = await writer();
+  // Never retried here, for the same reason as above.
+  return wallet.createEntity(
+    WebhookDelivery,
+    {
+      registry: addr(REGISTRY_ADDRESS),
+      merchant: addr(input.merchant),
+      event_id: str(input.eventId),
+      delivered: u64(input.delivered ? 1n : 0n),
+      sent_at: u64(BigInt(Math.floor(Date.now() / 1000))),
+      event_type: str(input.eventType),
+      invoice_id: u64(input.orderId),
+      status_code: u64(BigInt(input.statusCode)),
+      attempts: u64(BigInt(input.attempts)),
+    },
+    { expiration: ExpirationTime.fromDays(DELIVERY_LOG_DAYS), flags: { readonly: true } },
+    transaction,
+  );
+}
+
+export function writeWebhookDelivery(input: DeliveryInput) {
+  return oneAtATime(() => createDeliveryRecord(input));
 }
 
 export function writeInvoiceRecord(input: InvoiceRecordInput) {

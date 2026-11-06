@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
 import type { Address } from "viem";
 import { useSession } from "@/lib/use-session";
+import { WebhookSettings } from "./webhook-settings";
 
 function CopyButton({ text, label }: { text: string; label: string }) {
   const [copied, setCopied] = useState(false);
@@ -121,6 +122,17 @@ function browserCode(site: string) {
 </script>`;
 }
 
+const WEBHOOK_CODE = `// Express: keep the raw body, because the signature covers the exact bytes.
+app.post("/webhooks/settle", express.raw({ type: "application/json" }), (req, res) => {
+  const event = settle.webhooks.verify(
+    req.body,
+    req.headers["x-settle-signature"],
+    process.env.SETTLE_WEBHOOK_SECRET,
+  );
+  if (event.type === "order.paid") fulfil(event.data.receipt);
+  res.sendStatus(200);
+});`;
+
 export function DevelopersPanel() {
   const { address, kind } = useSession();
   const site = useSiteOrigin();
@@ -181,7 +193,17 @@ export function DevelopersPanel() {
             email address and need no wallet.
           </p>
         </div>
+        <div className="flex flex-col gap-2 border-t border-line pt-4">
+          <h3 className="font-semibold">4. Get told by webhook</h3>
+          <CodeBlock code={WEBHOOK_CODE} label="Copy webhook code" />
+          <p className="text-[13px]/[18px] text-muted">
+            A webhook reaches you even if the customer closes their browser. An event can arrive more
+            than once, so use its id to act on it only once.
+          </p>
+        </div>
       </section>
+
+      <WebhookSettings address={address} />
 
       <section aria-label="Your website's payments" className="card flex flex-col gap-2 p-5">
         <h2 className="display text-xl">Where payments show up</h2>

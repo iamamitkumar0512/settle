@@ -484,6 +484,8 @@ function DirectPay({ invoice, onChanged, onPaid }: PayProps) {
     setStage("payConfirming");
     try {
       if (await confirm(hash)) {
+        // This payment never passed through Settle, so its webhook needs announcing.
+        void postJson("/api/webhooks/notify", { txHash: hash });
         onPaid(hash);
         await onChanged();
       } else {

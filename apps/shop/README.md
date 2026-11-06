@@ -16,6 +16,10 @@ prints those lines from the source files when the site is built.
 | `components/buy-button.tsx` | Opens checkout. |
 | `app/thanks/page.tsx` | Verifies the payment before confirming the order. |
 
+Webhooks are optional and take 6 more lines, in `app/api/webhooks/settle/route.ts`. To turn them on,
+add this store's `/api/webhooks/settle` address on Settle's Developers page, and copy the signing
+secret into `SETTLE_WEBHOOK_SECRET`.
+
 ## Run it
 
 1. Log in to Settle with the account the store is paid into, and open Developers.

@@ -26,6 +26,41 @@ function pad(json: string) {
   return json + " ".repeat(padded - size);
 }
 
+// Where a merchant's webhooks go, and the secret that signs them.
+export type WebhookDetails = {
+  url: string;
+  secret: string;
+};
+
+// The merchant is inside the ciphertext, so an envelope copied to another merchant won't decrypt.
+export async function encryptWebhookDetails(merchant: string, details: WebhookDetails) {
+  const plaintext = JSON.stringify({ merchant: merchant.toLowerCase(), ...details });
+  return {
+    envelope: await encryptBytes(await dataKey(), pad(plaintext)),
+    mediaType: CONTENT_TYPE,
+  };
+}
+
+// Throws a fixed error on any failure, and never quotes the decrypted text.
+export async function decryptWebhookDetails(
+  merchant: string,
+  envelope: Uint8Array,
+  mediaType: string,
+): Promise<WebhookDetails> {
+  if (mediaType !== CONTENT_TYPE) throw new Error("Unsupported encrypted data");
+
+  const bytes = await decryptBytes(await dataKey(), envelope);
+  const value = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as Record<
+    string,
+    unknown
+  >;
+  const { merchant: owner, url, secret } = value;
+  if (owner !== merchant.toLowerCase() || typeof url !== "string" || typeof secret !== "string") {
+    throw new Error("Encrypted data is not valid for this merchant");
+  }
+  return { url, secret };
+}
+
 // The invoice id is inside the ciphertext, so an envelope copied onto another invoice won't decrypt.
 export async function encryptPrivateDetails(invoiceId: bigint, details: PrivateDetails) {
   const { customerName, customerEmail, customerWallet, receipt, salt } = details;

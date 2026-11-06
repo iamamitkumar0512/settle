@@ -3,7 +3,7 @@ import { storeIntegration } from "@/lib/integration";
 import { PRODUCTS } from "@/lib/products";
 
 export default function StorePage() {
-  const { parts, lineCount } = storeIntegration();
+  const { parts, webhook, lineCount, webhookLineCount } = storeIntegration();
 
   return (
     <main>
@@ -32,11 +32,11 @@ export default function StorePage() {
         <h2 id="integration">How this store takes payment</h2>
         <p>
           Chai Point is a separate website that installed <code>settle-pay</code>. These{" "}
-          <strong>{lineCount} lines</strong> are all of its Settle code, read from its own source
-          files when the site is built. Every order lands in the merchant&apos;s Settle dashboard,
-          where it can be refunded and exported.
+          <strong>{lineCount} lines</strong> take a payment, and {webhookLineCount} more get it told
+          by webhook. They are read from its own source files when the site is built. Every order
+          lands in the merchant&apos;s Settle dashboard, where it can be refunded and exported.
         </p>
-        {parts.map(({ file, purpose, lines }) => (
+        {[...parts, webhook].map(({ file, purpose, lines }) => (
           <figure key={file}>
             <figcaption>
               <span>{purpose}</span>

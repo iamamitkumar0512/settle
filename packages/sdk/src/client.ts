@@ -49,6 +49,7 @@ const MESSAGES: Record<string, string> = {
   payment_not_found: "No successful payment has that id.",
   payment_mismatch: "That payment didn't pay this order.",
   order_cancelled: "This order was cancelled.",
+  invalid_webhook_signature: "This webhook wasn't signed with your webhook secret.",
   timeout: "The order wasn't paid in time.",
   network: "Couldn't reach Settle.",
   InvoiceNotFound: "That order doesn't exist.",

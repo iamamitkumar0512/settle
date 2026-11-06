@@ -64,6 +64,8 @@ Optional tuning, with defaults: `MIN_INVOICE_USDT` (1), `RELAYER_MIN_WBT` (0.005
 3. Set `SETTLE_KEY_ID`, `SETTLE_KEY_SECRET` and `SETTLE_BASE_URL`. The last is the Settle app's
    address, and it is needed at build time too, because the store loads `checkout.js` from there.
 4. Put the store's address in the app's `NEXT_PUBLIC_DEMO_STORE_URL` and redeploy the app.
+5. On the same Developers page, add `https://<the store>/api/webhooks/settle` as the webhook. Copy
+   its signing secret into the store's `SETTLE_WEBHOOK_SECRET` and redeploy the store.
 
 ## 5. Publishing the SDK
 

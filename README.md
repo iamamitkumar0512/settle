@@ -148,9 +148,9 @@ balance, and it stops relaying below 0.005 WBT.
 
 The contract holds the money and status. Arkiv holds each invoice's business name and description,
 plus encrypted customer details that only the merchant can read. It also holds each subscription
-plan's name and description. A customer finds their invoices
-by the email or wallet address they were sent to. Details are in
-[`arkiv/schema.md`](arkiv/schema.md).
+plan's name and description, each merchant's encrypted webhook settings, and a delivery log that
+Arkiv drops after 7 days. A customer finds their invoices by the email or wallet address they were
+sent to. Details are in [`arkiv/schema.md`](arkiv/schema.md).
 
 - **Network:** Arkiv Rabdi testnet, chain `7794095`
 - **Wallet that writes entities:** `0x7d404608B53998044fDDf5d07f6da8092d155278`
@@ -193,13 +193,19 @@ const payment = await settle.payments.verify(response);
 </script>
 ```
 
+Settle also tells the store's server by signed webhook, even if the customer closes their browser.
+Each event is built from the transaction on Whitechain, so nothing a caller says can invent one.
+The store's address and secret are set on the app's Developers page, which also shows each delivery
+and can resend a failed one.
+
 [`settle-pay`](packages/sdk) also covers refunds, payment links and withdrawals. Everything it makes
 shows in the Settle dashboard for the same account, because both read the same contract. A business
 with no website can do all of this from the dashboard instead. Keys are on the app's Developers
 page.
 
 [`apps/shop`](apps/shop) is Chai Point, a separate store that shows this working. It has its own
-site and its own server, and all of its Settle code is 22 lines, which it prints on its own page.
+site and its own server. It takes a payment in 22 lines of Settle code and gets webhooks in 6 more,
+and it prints those lines on its own page.
 
 ## PDF invoices on Swarm
 
@@ -270,6 +276,8 @@ To deploy both, see [`DEPLOY.md`](DEPLOY.md).
   been run end to end yet. The SDK is not on npm until the app has its deployed address.
 - A store's order is created on-chain when checkout starts, so an abandoned cart costs the relayer
   gas. It is capped per merchant per day.
+- A webhook is tried 3 times over a few seconds. After that the merchant resends it by hand. There
+  is no webhook for a subscription charge yet.
 - Encrypted customer details are stored on public Arkiv. This uses sample data on testnet and should
   move off Arkiv before real customers use it. See [`arkiv/why-arkiv.md`](arkiv/why-arkiv.md).
 - Arkiv records last about 182 days, and nothing renews them yet.

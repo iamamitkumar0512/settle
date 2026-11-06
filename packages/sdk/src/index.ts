@@ -1,5 +1,6 @@
 import { Client, toDecimal, type SettleOptions } from "./client";
 import { Account, Orders, PaymentLinks, Payments, Refunds } from "./resources";
+import { Webhooks } from "./webhooks";
 
 /**
  * Settle for your server. It works the way a card gateway's SDK does: create an order, open
@@ -18,6 +19,7 @@ export default class Settle {
   readonly refunds: Refunds;
   readonly paymentLinks: PaymentLinks;
   readonly account: Account;
+  readonly webhooks: Webhooks;
   readonly #client: Client;
 
   constructor(options: SettleOptions) {
@@ -27,6 +29,7 @@ export default class Settle {
     this.refunds = new Refunds(this.#client);
     this.paymentLinks = new PaymentLinks(this.#client);
     this.account = new Account(this.#client);
+    this.webhooks = new Webhooks();
   }
 
   /** Current network fees and the smallest order. Settle adds no fee of its own. */
@@ -52,3 +55,4 @@ export type {
   Payment,
   PaymentLink,
 } from "./resources";
+export type { OrderPaidEvent, RefundCreatedEvent, WebhookEvent, WebhookTestEvent } from "./webhooks";

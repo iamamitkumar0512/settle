@@ -93,6 +93,34 @@ this customer is buying, so a paid cheap order can't be reused for a dear one.
 The result includes `receiptUrl`, your customer's receipt on Settle. It shows the proof on Whitechain
 and any refunds.
 
+**4. Get told by webhook.**
+
+A webhook reaches your server even if your customer closes their browser, so use it for anything
+that must happen. Add your address on the Developers page in Settle, and copy the signing secret.
+
+```js
+// Keep the raw body, because the signature covers the exact bytes.
+app.post("/webhooks/settle", express.raw({ type: "application/json" }), (req, res) => {
+  const event = settle.webhooks.verify(
+    req.body,
+    req.headers["x-settle-signature"],
+    process.env.SETTLE_WEBHOOK_SECRET,
+  );
+  if (event.type === "order.paid") fulfil(event.data.receipt);
+  res.sendStatus(200);
+});
+```
+
+| Event | Sent when | `data` holds |
+|---|---|---|
+| `order.paid` | An order is paid, by any route. | `orderId`, `paymentId`, `amount`, `received`, `networkFee`, `receipt`, `description`, `payer`, `receiptUrl` |
+| `refund.created` | You refund, in part or in full. | `orderId`, `refundId`, `amount`, `totalRefunded`, `receipt`, `description`, `payer`, `receiptUrl` |
+| `webhook.test` | You press Send test event. | `message` |
+
+Answer with any 2xx status. Settle tries 3 times over a few seconds, and each failure shows on the
+Developers page with a Resend button. An event can arrive more than once, so use `event.id` to act
+on it only once. The address must be public https.
+
 ## Everything you can call
 
 Results are plain text and numbers, so they go straight into `res.json()`. Amounts are USDT, like
@@ -109,6 +137,7 @@ Results are plain text and numbers, so they go straight into `res.json()`. Amoun
 | `payments.verify(response)` | Confirms a payment. |
 | `refunds.create({ orderId, amount })` | Refunds in part, or in full with no `amount`. It comes from your balance, and your customer sees it on their receipt. |
 | `paymentLinks.create(link)` | An invoice with a due date and a link to share. No code on your site. |
+| `webhooks.verify(rawBody, signature, secret)` | Checks a webhook came from Settle and returns its event. |
 | `account.balance()` | This account's USDT. |
 | `account.withdraw({ to, amount })` | Sends USDT to any address. The network fee comes out of `amount`. |
 | `fees()` | Current network fees and the smallest order. |
@@ -143,7 +172,8 @@ try {
 - The smallest order is 1 USDT. See `fees()`.
 - An account that has never been paid can hold 5 unpaid orders at a time.
 - An account can create 50 orders a day.
-- Settle's API allows 30 requests a minute from one address.
+- Settle's API allows 30 requests a minute from one address. Your server is one address, however
+  many customers it has.
 - Testnet only: Whitechain Sepolia, chain `1874`.
 
 ## Use from CommonJS
@@ -160,4 +190,5 @@ Node 20 or later. The SDK refuses to run in a browser, so your secret can't end 
 SETTLE_URL=https://<your Settle> SETTLE_KEY_ID=0x... SETTLE_KEY_SECRET=... pnpm --filter settle-pay example
 ```
 
-[`apps/shop`](../../apps/shop) is a complete store built on this package, in 22 lines of Settle code.
+[`apps/shop`](../../apps/shop) is a complete store built on this package, in 22 lines of Settle code
+and 6 more for webhooks.
