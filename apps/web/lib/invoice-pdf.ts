@@ -49,15 +49,16 @@ export async function attachInvoicePdf(
   }
 }
 
+// Either one is enough: the key from the pay link, or a login that is allowed to open the PDF.
 export async function fetchInvoicePdf(
   id: bigint,
-  credentials: Credentials,
+  access: { linkKey?: string; credentials?: Credentials },
 ): Promise<{ ok: true; pdf: Blob } | { ok: false; error: string }> {
   try {
     const response = await fetch(`/api/invoices/${id}/pdf`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ credentials }),
+      body: JSON.stringify(access),
     });
     if (!response.ok) return { ok: false, error: await errorCode(response) };
     return { ok: true, pdf: await response.blob() };

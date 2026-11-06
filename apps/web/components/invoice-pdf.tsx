@@ -8,34 +8,37 @@ import {
   pdfErrorMessage,
   pdfProblem,
 } from "@/lib/invoice-pdf";
+import { usePayLinkKey } from "@/lib/pay-link";
 import { useInvoiceDetails } from "@/lib/use-invoice-details";
 import { useRelayQuote } from "@/lib/use-relay-quote";
 import { useSession } from "@/lib/use-session";
 
 function DownloadPdf({ id }: { id: bigint }) {
   const session = useSession();
+  const linkKey = usePayLinkKey();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const credentials = session.credentials ?? undefined;
 
-  if (session.status !== "ready") {
+  // The key in a pay link opens the PDF by itself. Without it, the viewer has to be logged in.
+  if (!linkKey && session.status !== "ready") {
     return (
       <p className="text-[13px]/[18px] text-muted">A PDF invoice is attached. Log in to open it.</p>
     );
   }
   // A wallet that skipped the sign-in message has to prove itself before the PDF is released.
-  if (!session.credentials) {
+  if (!linkKey && !credentials) {
     return (
       <button type="button" className="btn" onClick={() => session.signIn().catch(() => undefined)}>
         Sign in to open the PDF invoice
       </button>
     );
   }
-  const credentials = session.credentials;
 
   async function download() {
     setError(undefined);
     setBusy(true);
-    const result = await fetchInvoicePdf(id, credentials);
+    const result = await fetchInvoicePdf(id, { linkKey, credentials });
     setBusy(false);
     if (!result.ok) return setError(pdfErrorMessage(result.error));
 

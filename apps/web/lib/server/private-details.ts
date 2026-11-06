@@ -5,6 +5,7 @@ import { CONTENT_TYPE, decryptBytes, encryptBytes, importKey } from "arkiv-encry
 export type PrivateDetails = {
   customerName: string;
   customerEmail: string;
+  customerWallet: string;
   salt: string;
 };
 
@@ -25,11 +26,12 @@ function pad(json: string) {
 
 // The invoice id is inside the ciphertext, so an envelope copied onto another invoice won't decrypt.
 export async function encryptPrivateDetails(invoiceId: bigint, details: PrivateDetails) {
-  const { customerName, customerEmail, salt } = details;
+  const { customerName, customerEmail, customerWallet, salt } = details;
   const plaintext = JSON.stringify({
     invoiceId: String(invoiceId),
     customerName,
     customerEmail,
+    customerWallet,
     salt,
   });
   return {
@@ -51,13 +53,16 @@ export async function decryptPrivateDetails(
     const value: unknown = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes));
     if (typeof value === "object" && value !== null) {
       const { invoiceId: id, customerName, customerEmail, salt } = value as Record<string, unknown>;
+      // Records from before invoices could be sent to a wallet have no wallet field.
+      const customerWallet = (value as Record<string, unknown>).customerWallet ?? "";
       if (
         id === String(invoiceId) &&
         typeof customerName === "string" &&
         typeof customerEmail === "string" &&
+        typeof customerWallet === "string" &&
         typeof salt === "string"
       ) {
-        return { customerName, customerEmail, salt };
+        return { customerName, customerEmail, customerWallet, salt };
       }
     }
   } catch {

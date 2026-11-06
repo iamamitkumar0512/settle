@@ -18,7 +18,7 @@ export type RefundRecord = InvoiceEvent & {
   amount: bigint;
 };
 
-// The fee is what Settle kept for sending the payment. It is 0 when the customer paid directly.
+// The fee repaid the relayer's gas for sending the payment. It is 0 when the customer paid directly.
 export type PaymentRecord = InvoiceEvent & {
   fee: bigint;
 };

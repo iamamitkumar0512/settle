@@ -2,7 +2,9 @@ import { parseEventLogs } from "viem";
 import { registry } from "@/lib/contracts";
 import { hashInvoiceDetails, InvoiceStatus } from "@/lib/invoice";
 import { readMerchantInvoiceIds, writeInvoiceRecord } from "@/lib/server/arkiv";
+import { coversNewRequest, relayFees } from "@/lib/server/gas-fee";
 import { parseInvoiceDetails } from "@/lib/server/invoice-details";
+import { payLinkKey } from "@/lib/server/pay-link";
 import {
   addressField,
   bytes32Field,
@@ -14,7 +16,6 @@ import {
   chainClient,
   MIN_INVOICE,
   relay,
-  RELAY_FEE,
   RelayError,
   spendFreeRelay,
 } from "@/lib/server/relayer";
@@ -70,7 +71,10 @@ export async function POST(request: Request) {
     }
 
     if (invoice.amount < MIN_INVOICE) throw new RelayError(400, "invoice_too_small");
-    if (invoice.relayFee < RELAY_FEE) throw new RelayError(400, "relay_fee_too_low");
+    const { payFee } = await relayFees();
+    if (!coversNewRequest(invoice.relayFee, payFee)) {
+      throw new RelayError(400, "relay_fee_too_low");
+    }
     const now = BigInt(Math.floor(Date.now() / 1000));
     if (invoice.deadline < now + 60n || invoice.deadline > now + 3600n) {
       throw new RelayError(400, "invalid_window");
@@ -104,6 +108,7 @@ export async function POST(request: Request) {
       () => false,
     );
 
-    return { id: String(id), txHash: hash, saved };
+    // The caller signed as the merchant, so they get the key for the invoice's pay link.
+    return { id: String(id), txHash: hash, saved, linkKey: payLinkKey(id) };
   });
 }

@@ -167,12 +167,12 @@ function Withdraw({ address, balance }: { address: Address; balance: bigint }) {
             checked={paysOwnGas}
             onChange={(event) => setPaysOwnGas(event.target.checked)}
           />
-          Pay the gas from my wallet in WBT, with no Settle fee
+          Pay the gas from my wallet in WBT instead
         </label>
       )}
       <div className="well flex flex-col gap-1.5 text-[13px]/[18px]">
         <div className="flex justify-between gap-4">
-          <span className="text-muted">{direct ? "Gas" : "Settle fee, covers the gas"}</span>
+          <span className="text-muted">{direct ? "Gas" : "Network fee, repays the gas"}</span>
           <span className="figure">{direct ? "Paid by your wallet" : `${formatUsdt(fee)} USDT`}</span>
         </div>
         <div className="flex justify-between gap-4">

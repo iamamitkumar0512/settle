@@ -10,12 +10,13 @@ import {
   dueDateToUnix,
   hashInvoiceDetails,
   INVOICE_LIMITS,
-  isValidEmail,
+  parseCustomerContact,
   newSalt,
   parseUsdtAmount,
   type InvoiceDetails,
 } from "@/lib/invoice";
 import { attachInvoicePdf, pdfErrorMessage, pdfProblem } from "@/lib/invoice-pdf";
+import { payUrl } from "@/lib/pay-link";
 import { postJson } from "@/lib/relay-client";
 import { saveInvoiceDetails } from "@/lib/save-invoice-details";
 import { createInvoiceRequest } from "@/lib/typed-data";
@@ -31,14 +32,20 @@ const MAX_MEMO = Math.floor(INVOICE_LIMITS.memoBytes / 4);
 const EMPTY_FORM = {
   merchantName: "",
   customerName: "",
-  customerEmail: "",
+  customerContact: "",
   memo: "",
   amount: "",
   dueDate: "",
 };
 
 type SaveState = "saving" | "saved" | "failed";
-type CreatedInvoice = { id: bigint; hash: Hash; details: InvoiceDetails; salt: Hex };
+type CreatedInvoice = {
+  id: bigint;
+  hash: Hash;
+  details: InvoiceDetails;
+  salt: Hex;
+  linkKey?: string;
+};
 
 function displayAmount(text: string) {
   return formatUsdt(parseUsdtAmount(text) ?? 0n);
@@ -51,6 +58,7 @@ function displayDate(date: string) {
 function CreatedPanel({
   id,
   hash,
+  linkKey,
   saveState,
   pdfUploading,
   pdfError,
@@ -59,6 +67,7 @@ function CreatedPanel({
 }: {
   id: bigint;
   hash: Hash;
+  linkKey?: string;
   saveState: SaveState;
   pdfUploading: boolean;
   pdfError?: string;
@@ -66,10 +75,10 @@ function CreatedPanel({
   onReset: () => void;
 }) {
   const [copied, setCopied] = useState(false);
-  const payUrl = `${window.location.origin}/pay/${id}`;
+  const link = payUrl(id, linkKey);
 
   async function copyLink() {
-    await navigator.clipboard.writeText(payUrl);
+    await navigator.clipboard.writeText(link);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }
@@ -83,7 +92,7 @@ function CreatedPanel({
         <span className="pill">Open</span>
       </div>
       <div className="well flex flex-wrap items-center justify-between gap-3">
-        <span className="figure text-[13px]/[18px] break-all">{payUrl}</span>
+        <span className="figure text-[13px]/[18px] break-all">{link}</span>
         <button type="button" className="btn" onClick={copyLink}>
           {copied ? "Link copied" : "Copy pay link"}
         </button>
@@ -196,15 +205,17 @@ export function NewInvoiceForm() {
     );
     setDateError(dueAt === null ? "Choose today or a later date." : undefined);
     setNameError(form.merchantName.trim() ? undefined : "Enter your business name.");
-    const emailValid = isValidEmail(form.customerEmail);
+    const contact = parseCustomerContact(form.customerContact);
     setEmailError(
-      emailValid ? undefined : "Enter your customer's email, so they can find this invoice.",
+      contact
+        ? undefined
+        : "Enter your customer's email or wallet address, so they can find this invoice.",
     );
-    if (!amountValid || dueAt === null || !form.merchantName.trim() || !emailValid) return;
+    if (!amountValid || dueAt === null || !form.merchantName.trim() || !contact) return;
     if (pdf && pdfProblem(pdf)) return;
 
-    const { merchantName, customerName, customerEmail, memo } = form;
-    const details = { merchantName, customerName, customerEmail, memo };
+    const { merchantName, customerName, memo } = form;
+    const details = { merchantName, customerName, ...contact, memo };
     const salt = newSalt();
     const typed = createInvoiceRequest({
       merchant: session.address,
@@ -225,7 +236,13 @@ export function NewInvoiceForm() {
     );
     if (!data) return;
 
-    const invoice = { id: BigInt(data.id as string), hash: data.txHash as Hash, details, salt };
+    const invoice = {
+      id: BigInt(data.id as string),
+      hash: data.txHash as Hash,
+      details,
+      salt,
+      linkKey: typeof data.linkKey === "string" ? data.linkKey : undefined,
+    };
     setCreated(invoice);
     setSaveState(data.saved ? "saved" : "failed");
 
@@ -245,6 +262,7 @@ export function NewInvoiceForm() {
           <CreatedPanel
             id={created.id}
             hash={created.hash}
+            linkKey={created.linkKey}
             saveState={saveState}
             pdfUploading={pdfUploading}
             pdfError={pdfError}
@@ -285,15 +303,15 @@ export function NewInvoiceForm() {
                   />
                 </label>
                 <label className="field">
-                  Customer email
+                  Customer email or wallet address
                   <input
                     className="input"
-                    type="email"
+                    type="text"
                     autoComplete="off"
                     maxLength={MAX_CUSTOMER_FIELD}
                     aria-invalid={emailError ? true : undefined}
-                    value={form.customerEmail}
-                    onChange={(event) => update("customerEmail", event.target.value)}
+                    value={form.customerContact}
+                    onChange={(event) => update("customerContact", event.target.value)}
                   />
                   {emailError && (
                     <span role="alert" className="text-[13px]/[18px] font-normal text-late">
@@ -374,9 +392,16 @@ export function NewInvoiceForm() {
               )}
             </fieldset>
             {quote.available ? (
-              <div className="well flex items-baseline justify-between gap-4 text-[13px]/[18px]">
-                <span className="text-muted">Settle fee, taken when the invoice is paid</span>
-                <span className="figure">{formatUsdt(relayFee)} USDT</span>
+              <div className="well flex flex-col gap-1.5 text-[13px]/[18px]">
+                <div className="flex items-baseline justify-between gap-4">
+                  <span className="text-muted">Network fee, if your customer pays without gas</span>
+                  <span className="figure">{formatUsdt(relayFee)} USDT</span>
+                </div>
+                <p className="text-muted">
+                  It repays the gas Settle spends to send the payment, and comes out of this
+                  invoice. Settle adds nothing on top. If your customer pays the gas from their own
+                  wallet, you receive the full amount.
+                </p>
               </div>
             ) : (
               !quote.isPending && (

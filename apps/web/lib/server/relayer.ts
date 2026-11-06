@@ -20,11 +20,7 @@ import { registry } from "@/lib/contracts";
 import { toInvoice } from "@/lib/invoice";
 import { allow, DAY } from "./rate-limit";
 
-// The fee a merchant must offer on an invoice before we relay its payment.
-export const RELAY_FEE = parseUnits(process.env.RELAY_FEE_USDT ?? "0.05", 6);
 export const MIN_INVOICE = parseUnits(process.env.MIN_INVOICE_USDT ?? "1", 6);
-// What a sender pays, out of the amount, to move USDT without gas.
-export const WITHDRAW_FEE = parseUnits(process.env.WITHDRAW_FEE_USDT ?? "0.05", 6);
 const MAX_FEE_PER_GAS = parseGwei(process.env.RELAYER_MAX_FEE_GWEI ?? "50");
 const MIN_BALANCE = parseEther(process.env.RELAYER_MIN_WBT ?? "0.005");
 // Create, refund and cancel earn no fee, so they share a daily budget.

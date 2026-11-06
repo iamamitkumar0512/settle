@@ -1,15 +1,10 @@
 import { connection } from "next/server";
-import {
-  MIN_INVOICE,
-  RELAY_FEE,
-  RelayError,
-  relayerAccount,
-  WITHDRAW_FEE,
-} from "@/lib/server/relayer";
+import { relayFees } from "@/lib/server/gas-fee";
+import { MIN_INVOICE, RelayError, relayerAccount } from "@/lib/server/relayer";
 import { swarmConfigured } from "@/lib/server/swarm";
 
-// What the server can do right now, and what the relayer charges: the fee stored on a new
-// invoice, and the fee for sending USDT.
+// What the server can do right now, and what a relayed payment and a relayed transfer cost in
+// gas. A new invoice stores the first of those as its fee.
 export async function GET() {
   // Read the relayer's settings per request, not once at build time.
   await connection();
@@ -19,12 +14,13 @@ export async function GET() {
   } catch (error) {
     if (!(error instanceof RelayError)) throw error;
   }
+  const { payFee, withdrawFee } = await relayFees();
   return Response.json({
     available: relayer !== null,
     relayer,
-    relayFee: String(RELAY_FEE),
+    relayFee: String(payFee),
     minInvoice: String(MIN_INVOICE),
-    withdrawFee: String(WITHDRAW_FEE),
+    withdrawFee: String(withdrawFee),
     canAttachPdf: swarmConfigured(),
   });
 }

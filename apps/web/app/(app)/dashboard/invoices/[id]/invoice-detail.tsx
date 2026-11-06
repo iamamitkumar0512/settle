@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import type { Hash } from "viem";
 import { InvoicePdf } from "@/components/invoice-pdf";
+import { customerContact } from "@/lib/customer-invoices";
 import { explorerTxUrl, formatDate, formatDateTime, formatUsdt, shortAddress, shortHash } from "@/lib/format";
 import { InvoiceStatus, invoiceState, type Invoice } from "@/lib/invoice";
 import { useInvoice } from "@/lib/use-invoice";
@@ -47,8 +48,8 @@ function timeline(invoice: Invoice, records: InvoiceRecords) {
         ...records.paid,
         key: "fee",
         tone: "",
-        title: "Settle fee",
-        detail: "For sending the payment without gas",
+        title: "Network fee",
+        detail: "Gas for sending the payment, repaid to Settle",
         amount: `−${formatUsdt(records.paid.fee)}`,
       });
     }
@@ -152,7 +153,7 @@ function Detail({ invoice, onChanged }: { invoice: Invoice; onChanged: () => Pro
           {customer?.customerName && (
             <p className="mt-1 text-muted">
               {customer.customerName}
-              {customer.customerEmail && ` · ${customer.customerEmail}`}
+              {customerContact(customer) && ` · ${customerContact(customer)}`}
             </p>
           )}
           <p className="mt-1 mb-5 text-muted">
@@ -188,7 +189,7 @@ function Detail({ invoice, onChanged }: { invoice: Invoice; onChanged: () => Pro
       </div>
       <aside className="card flex flex-col gap-4 p-5">
         {invoice.status === InvoiceStatus.Open && (
-          <CancelCard invoice={invoice} onChanged={onChanged} />
+          <CancelCard invoice={invoice} linkKey={customer?.linkKey} onChanged={onChanged} />
         )}
         {isPaid && <RefundCard invoice={invoice} onChanged={onChanged} />}
         {invoice.status === InvoiceStatus.Cancelled && (

@@ -5,6 +5,7 @@ import { formatUnits, type Hash } from "viem";
 import { USDT_DECIMALS } from "@/lib/contracts";
 import { explorerTxUrl, formatUsdt, shortAddress } from "@/lib/format";
 import { parseUsdtAmount, type Invoice } from "@/lib/invoice";
+import { payUrl } from "@/lib/pay-link";
 import { postJson, splitSignature } from "@/lib/relay-client";
 import { cancelInvoiceRequest, refundAuthorization } from "@/lib/typed-data";
 import { useSignedAction } from "@/lib/use-signed-action";
@@ -15,13 +16,13 @@ type ActionProps = {
   onChanged: () => Promise<unknown>;
 };
 
-export function CancelCard({ invoice, onChanged }: ActionProps) {
+export function CancelCard({ invoice, linkKey, onChanged }: ActionProps & { linkKey?: string }) {
   const action = useSignedAction();
   const [confirming, setConfirming] = useState(false);
   const [copied, setCopied] = useState(false);
 
   async function copyLink() {
-    await navigator.clipboard.writeText(`${window.location.origin}/pay/${invoice.id}`);
+    await navigator.clipboard.writeText(payUrl(invoice.id, linkKey));
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }

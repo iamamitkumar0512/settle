@@ -124,13 +124,13 @@ function InvoiceSections({
   );
 }
 
-// Invoices billed to this account's email, plus everything its wallet has paid.
+// Invoices sent to this account's email or wallet address, plus everything its wallet has paid.
 export function CustomerInvoices() {
   const session = useSession();
   const { credentials } = session;
 
   const billed = useQuery({
-    queryKey: ["customer-invoices", session.address],
+    queryKey: ["customer-invoices", session.address, credentials],
     enabled: Boolean(credentials),
     queryFn: async () => {
       const result = await postJson("/api/customer/invoices", { credentials });
@@ -145,17 +145,27 @@ export function CustomerInvoices() {
     ...new Set([...(billed.data ?? []).map((invoice) => BigInt(invoice.id)), ...(paid.data ?? [])]),
   ];
   const { invoices, isLoading } = useInvoicesById(ids);
-  const isEmail = session.kind === "email";
   const loading = (Boolean(credentials) && billed.isPending) || paid.isPending || isLoading;
 
   return (
     <main className="mx-auto flex w-full max-w-[720px] flex-col gap-6">
       <h1 className="display text-4xl/11">To pay</h1>
-      {!isEmail && (
-        <p className="text-[13px]/[18px] text-muted">
-          A wallet shows the invoices it has paid. Invoices sent to an email address show when you
-          log in with that email.
-        </p>
+      {!credentials && (
+        <section className="card flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+          <div>
+            <div className="font-semibold">Invoices sent to this wallet are private</div>
+            <div className="text-[13px]/[18px] text-muted">
+              Sign one message in your wallet to see them. It costs no gas.
+            </div>
+          </div>
+          <button
+            type="button"
+            className="btn"
+            onClick={() => session.signIn().catch(() => undefined)}
+          >
+            Show my invoices
+          </button>
+        </section>
       )}
       {billed.isError || paid.isError ? (
         <p role="alert" className="card px-6 py-12 text-center text-muted">
@@ -163,14 +173,14 @@ export function CustomerInvoices() {
         </p>
       ) : loading ? (
         <p className="card px-6 py-12 text-center text-muted">Loading your invoices…</p>
-      ) : (
+      ) : !credentials && invoices.length === 0 ? null : (
         <InvoiceSections
           invoices={invoices}
           known={known}
           emptyText={
-            isEmail
-              ? "No invoices have been sent to this email yet."
-              : "This wallet hasn't paid any invoices yet."
+            session.kind === "email"
+              ? "No invoices have been sent to this email or its wallet yet."
+              : "No invoices have been sent to this wallet yet."
           }
         />
       )}

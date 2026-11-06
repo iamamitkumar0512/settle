@@ -7,9 +7,10 @@ import {
   uintField,
   vrsFields,
 } from "@/lib/server/relay-http";
-import { relay, RelayError, WITHDRAW_FEE } from "@/lib/server/relayer";
+import { coversNewRequest, relayFees } from "@/lib/server/gas-fee";
+import { relay, RelayError } from "@/lib/server/relayer";
 
-// Sends an account's USDT to any address. The sender pays the fee in USDT out of the amount, so
+// Sends an account's USDT to any address. The fee repays the gas and comes out of the amount, so
 // this needs no login and no daily cap: the signature is the authorization.
 export async function POST(request: Request) {
   return relayRoute(request, async (body) => {
@@ -22,7 +23,8 @@ export async function POST(request: Request) {
     const validBefore = uintField(body.validBefore);
     const { v, r, s } = vrsFields(body);
     checkWindow(validBefore);
-    if (fee < WITHDRAW_FEE) throw new RelayError(400, "relay_fee_too_low");
+    const { withdrawFee } = await relayFees();
+    if (!coversNewRequest(fee, withdrawFee)) throw new RelayError(400, "relay_fee_too_low");
     if (amount <= fee) throw new RelayError(400, "FeeTooLarge");
 
     const { hash } = await relay({

@@ -11,9 +11,11 @@ import {
   type Invoice,
   type InvoiceState,
 } from "@/lib/invoice";
-import type { InvoiceCustomer } from "@/lib/customer-invoices";
+import { customerContact, type InvoiceCustomer } from "@/lib/customer-invoices";
+import { payUrl } from "@/lib/pay-link";
 import { useMerchantCustomers } from "@/lib/use-merchant-customers";
 import { useMerchantInvoices } from "@/lib/use-merchant-invoices";
+import { useMerchantPayments, type MerchantPayment } from "@/lib/use-merchant-payments";
 import { useSession } from "@/lib/use-session";
 
 const FILTERS = ["All", "Open", "Paid", "Refunded", "Cancelled"] as const;
@@ -31,7 +33,7 @@ function Stat({
   tone?: string;
 }) {
   return (
-    <div className="px-6 md:border-l md:border-line md:first:border-l-0">
+    <div className="px-6 lg:border-l lg:border-line lg:first:border-l-0">
       <div className="label">{label}</div>
       <div className={`figure mt-1.5 text-3xl/[38px] ${tone ?? ""}`}>{value}</div>
       <div className="text-[13px]/[18px] text-muted">{detail}</div>
@@ -43,23 +45,44 @@ function plural(count: number) {
   return `USDT on ${count} ${count === 1 ? "invoice" : "invoices"}`;
 }
 
-function Summary({ rows }: { rows: { invoice: Invoice; state: InvoiceState }[] }) {
+function Summary({
+  rows,
+  payments,
+}: {
+  rows: { invoice: Invoice; state: InvoiceState }[];
+  payments?: Map<string, MerchantPayment>;
+}) {
   const open = rows.filter(({ state }) => state.group === "Open");
   const overdue = open.filter(({ state }) => state.isOverdue);
   const paid = rows.filter(({ invoice }) => invoice.payer !== zeroAddress);
   const refunded = paid.filter(({ invoice }) => invoice.refunded > 0n);
   const total = (items: typeof rows, read: (invoice: Invoice) => bigint) =>
     items.reduce((sum, { invoice }) => sum + read(invoice), 0n);
+  // A relayed payment repays the relayer's gas out of the invoice. Nothing is owed afterwards.
+  const relayed = paid.filter(({ invoice }) => payments?.get(String(invoice.id))?.gasless);
 
   return (
     <section
       aria-label="Summary"
-      className="card grid grid-cols-2 gap-y-6 py-6 md:grid-cols-4"
+      className="card grid grid-cols-2 gap-y-6 py-6 lg:grid-cols-5"
     >
       <Stat
         label="Collected"
         value={formatUsdt(total(paid, (invoice) => invoice.amount))}
         detail={`USDT from ${paid.length} ${paid.length === 1 ? "payment" : "payments"}`}
+      />
+      <Stat
+        label="Network fees"
+        value={
+          payments
+            ? formatUsdt(total(relayed, (invoice) => payments.get(String(invoice.id))?.fee ?? 0n))
+            : "—"
+        }
+        detail={
+          payments
+            ? `USDT of gas on ${relayed.length} gasless ${relayed.length === 1 ? "payment" : "payments"}`
+            : "Loading…"
+        }
       />
       <Stat
         label="Outstanding"
@@ -81,11 +104,11 @@ function Summary({ rows }: { rows: { invoice: Invoice; state: InvoiceState }[] }
   );
 }
 
-function CopyLinkButton({ id }: { id: bigint }) {
+function CopyLinkButton({ id, linkKey }: { id: bigint; linkKey?: string }) {
   const [copied, setCopied] = useState(false);
 
   async function copy() {
-    await navigator.clipboard.writeText(`${window.location.origin}/pay/${id}`);
+    await navigator.clipboard.writeText(payUrl(id, linkKey));
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }
@@ -146,14 +169,20 @@ function InvoiceRow({
   invoice,
   state,
   customer,
+  payment,
   signedIn,
 }: {
   invoice: Invoice;
   state: InvoiceState;
   customer?: InvoiceCustomer;
+  payment?: MerchantPayment;
   signedIn: boolean;
 }) {
   const isPaid = invoice.payer !== zeroAddress;
+  const notes = [
+    invoice.refunded > 0n && `${formatUsdt(invoice.refunded)} refunded`,
+    payment && (payment.gasless ? `${formatUsdt(payment.fee)} network fee` : "no fee"),
+  ].filter(Boolean);
 
   return (
     <tr>
@@ -169,8 +198,8 @@ function InvoiceRow({
         {signedIn ? (
           <>
             <div>{customer?.customerName || "—"}</div>
-            {customer?.customerEmail && (
-              <div className="text-[13px]/[18px] text-muted">{customer.customerEmail}</div>
+            {customer && customerContact(customer) && (
+              <div className="text-[13px]/[18px] text-muted">{customerContact(customer)}</div>
             )}
           </>
         ) : (
@@ -196,11 +225,11 @@ function InvoiceRow({
       <td className="text-right">
         <div className="figure">{formatUsdt(invoice.amount)}</div>
         <div className="text-[13px]/[18px] text-muted">
-          {invoice.refunded > 0n ? `${formatUsdt(invoice.refunded)} refunded` : "USDT"}
+          {notes.length > 0 ? notes.join(" · ") : "USDT"}
         </div>
       </td>
       <td className="text-right">
-        {state.group === "Open" && <CopyLinkButton id={invoice.id} />}
+        {state.group === "Open" && <CopyLinkButton id={invoice.id} linkKey={customer?.linkKey} />}
         {state.group !== "Open" && (
           <Link href={`/dashboard/invoices/${invoice.id}`} className="btn min-h-[38px]">
             View
@@ -234,6 +263,10 @@ function InvoiceList() {
   const { address } = session;
   const merchant = useMerchantCustomers();
   const { invoices, isLoading, isError, retry } = useMerchantInvoices(address);
+  const payments = useMerchantPayments(
+    address,
+    invoices.filter((invoice) => invoice.payer !== zeroAddress).length,
+  );
   const [filter, setFilter] = useState<Filter>("All");
   const [search, setSearch] = useState("");
   const [now] = useState(() => BigInt(Math.floor(Date.now() / 1000)));
@@ -284,12 +317,13 @@ function InvoiceList() {
       customer?.memo,
       customer?.customerName,
       customer?.customerEmail,
+      customer?.customerWallet,
     ].some((value) => value?.toLowerCase().includes(term));
   });
 
   return (
     <>
-      <Summary rows={rows} />
+      <Summary rows={rows} payments={payments} />
       {session.kind === "wallet" && !merchant.isUnlocked && <CustomerSignIn />}
       {merchant.error && (
         <p role="alert" className="text-[13px]/[18px] text-late">
@@ -350,6 +384,7 @@ function InvoiceList() {
                     invoice={invoice}
                     state={state}
                     customer={merchant.customers.get(String(invoice.id))}
+                    payment={payments?.get(String(invoice.id))}
                     signedIn={merchant.isUnlocked}
                   />
                 ))}

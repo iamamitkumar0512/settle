@@ -17,11 +17,11 @@ There are two entity types, both defined in
 | `invoice_id` | `u64` | Yes | Yes | The on-chain invoice id |
 | `merchant` | `addr` | Yes | Yes | The merchant wallet |
 | `due_at` | `u64` | Yes | Yes | Due date in unix seconds |
-| `customer_lookup` | `str` | Yes | Keyed hash | Finds a customer's invoices without storing a readable email |
+| `customer_lookup` | `str` | Yes | Keyed hash | Finds a customer's invoices without storing a readable email or wallet address |
 | `amount_usdt` | `u256` | No | Yes | Amount in USDT, 6 decimals |
 | `merchant_name` | `str` | No | Yes | Business name shown to customers, up to 128 bytes |
 | `public_details` | `bytes` | No | Yes | JSON: `{ memo }` |
-| `private_details` | `bytes` | No | Encrypted | `{ invoiceId, customerName, customerEmail, salt }` |
+| `private_details` | `bytes` | No | Encrypted | `{ invoiceId, customerName, customerEmail, customerWallet, salt }` |
 | `private_media_type` | `str` | No | Yes | Format of the encrypted data |
 
 ### `settle_invoice_file_v1`: one per attached PDF
@@ -39,6 +39,10 @@ See [`swarm.md`](swarm.md).
 | `media_type` | `str` | No | Yes | What the file is once decrypted: `application/pdf` |
 | `size_bytes` | `u64` | No | Yes | Size of the PDF before encryption |
 | `encryption` | `str` | No | Yes | How the bytes on Swarm are laid out |
+
+An invoice is sent to an email address or to a wallet address, so one of `customerEmail` and
+`customerWallet` is empty. `customer_lookup` is a keyed hash of whichever one is set. A wallet
+customer proves the address by signing a message, and an email customer by logging in.
 
 ## Fields we query
 

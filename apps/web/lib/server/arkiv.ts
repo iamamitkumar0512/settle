@@ -12,8 +12,9 @@ import { privateKeyToAccount } from "viem/accounts";
 import { getGasPrice } from "viem/actions";
 import { REGISTRY_ADDRESS } from "@/lib/contracts";
 import type { CustomerInvoice, InvoiceCustomer } from "@/lib/customer-invoices";
-import { customerLookup, normalizeEmail } from "./customer-lookup";
+import { customerLookup, normalizeEmail, walletLookup } from "./customer-lookup";
 import { FILE_ENCRYPTION } from "./invoice-file";
+import { payLinkKey } from "./pay-link";
 import {
   decryptPrivateDetails,
   encryptPrivateDetails,
@@ -191,6 +192,8 @@ export async function readMerchantCustomers(merchant: Address) {
         memo: memoFrom(row.public_details.value),
         customerName: details?.customerName ?? "",
         customerEmail: details?.customerEmail ?? "",
+        customerWallet: details?.customerWallet ?? "",
+        linkKey: payLinkKey(id),
       });
     }
 
@@ -198,10 +201,15 @@ export async function readMerchantCustomers(merchant: Address) {
   }
 }
 
-export async function readCustomerInvoices(email: string) {
+// The email or the wallet address an invoice was sent to.
+export type BilledTo = { email: string } | { wallet: Address };
+
+export async function readCustomerInvoices(customer: BilledTo) {
   const invoices: CustomerInvoice[] = [];
   const reader = arkivReader();
-  const lookup = str(customerLookup(email));
+  const lookup = str(
+    "email" in customer ? customerLookup(customer.email) : walletLookup(customer.wallet),
+  );
 
   for (let offset = 0; ; offset += PAGE_SIZE) {
     const page = await reader
@@ -226,7 +234,13 @@ export async function readCustomerInvoices(email: string) {
         hexToBytes(row.private_details.value),
         row.private_media_type.value,
       ).catch(() => null);
-      if (details && normalizeEmail(details.customerEmail) === normalizeEmail(email)) {
+      // The lookup found the record; this confirms it against what is encrypted inside it.
+      const isTheirs =
+        details &&
+        ("email" in customer
+          ? normalizeEmail(details.customerEmail) === normalizeEmail(customer.email)
+          : details.customerWallet.toLowerCase() === customer.wallet.toLowerCase());
+      if (isTheirs) {
         invoices.push({
           id: String(id),
           merchantName: row.merchant_name.value,
@@ -267,10 +281,11 @@ async function writer() {
 
 async function createRecord(input: InvoiceRecordInput) {
   const { id, merchant, amount, dueAt, merchantName, memo } = input;
-  const { customerName, customerEmail, salt } = input;
+  const { customerName, customerEmail, customerWallet, salt } = input;
   const { envelope, mediaType } = await encryptPrivateDetails(id, {
     customerName,
     customerEmail,
+    customerWallet,
     salt,
   });
 
@@ -283,7 +298,9 @@ async function createRecord(input: InvoiceRecordInput) {
       invoice_id: u64(id),
       merchant: addr(merchant),
       due_at: u64(dueAt),
-      customer_lookup: str(customerLookup(customerEmail)),
+      customer_lookup: str(
+        customerWallet ? walletLookup(customerWallet) : customerLookup(customerEmail),
+      ),
       amount_usdt: u256(amount),
       merchant_name: str(merchantName),
       public_details: bytes(stringToBytes(JSON.stringify({ memo }))),

@@ -1,5 +1,7 @@
 import {
   bytesToHex,
+  getAddress,
+  isAddress,
   keccak256,
   parseUnits,
   stringToHex,
@@ -18,12 +20,23 @@ export function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
 
+// An invoice is sent to an email address or to a wallet address. The other one stays empty.
 export type InvoiceDetails = {
   merchantName: string;
   customerName: string;
   customerEmail: string;
+  customerWallet: string;
   memo: string;
 };
+
+// Reads what a merchant typed as the email or the wallet address it is.
+export function parseCustomerContact(text: string) {
+  const value = text.trim();
+  if (isAddress(value, { strict: false })) {
+    return { customerEmail: "", customerWallet: getAddress(value) as string };
+  }
+  return isValidEmail(value) ? { customerEmail: value, customerWallet: "" } : null;
+}
 
 // Returns null unless the text is a positive USDT amount with at most 6 decimals.
 export function parseUsdtAmount(text: string): bigint | null {
@@ -46,9 +59,11 @@ export function newSalt(): Hex {
 
 // The on-chain ref. The salt stops anyone guessing an email from this public hash.
 export function hashInvoiceDetails(details: InvoiceDetails, salt: Hex): Hex {
-  const { merchantName, customerName, customerEmail, memo } = details;
+  const { merchantName, customerName, customerEmail, customerWallet, memo } = details;
+  // An invoice sent to an email hashes exactly as it always has. One sent to a wallet adds it.
+  const customer = customerWallet ? { customerEmail, customerWallet } : { customerEmail };
   return keccak256(
-    stringToHex(JSON.stringify({ merchantName, customerName, customerEmail, memo, salt })),
+    stringToHex(JSON.stringify({ merchantName, customerName, ...customer, memo, salt })),
   );
 }
 

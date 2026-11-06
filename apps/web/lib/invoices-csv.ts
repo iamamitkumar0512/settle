@@ -10,6 +10,7 @@ const HEADERS = [
   "business_name",
   "customer_name",
   "customer_email",
+  "customer_wallet",
   "description",
   "status",
   "created_at_utc",
@@ -18,6 +19,7 @@ const HEADERS = [
   "currency",
   "amount",
   "refunded",
+  "network_fee",
   "net_received",
   "payer",
   "merchant",
@@ -29,7 +31,7 @@ const HEADERS = [
 
 type MerchantEvents = {
   created: Map<bigint, InvoiceEvent>;
-  paid: Map<bigint, Hash>;
+  paid: Map<bigint, { hash: Hash; fee: bigint }>;
   refunds: Map<bigint, Hash[]>;
   cancelled: Map<bigint, Hash>;
 };
@@ -60,7 +62,12 @@ async function readMerchantEvents(
     for (const log of created) {
       events.created.set(log.args.id as bigint, await toEvent(client, log));
     }
-    for (const log of paid) events.paid.set(log.args.id as bigint, log.transactionHash);
+    for (const log of paid) {
+      events.paid.set(log.args.id as bigint, {
+        hash: log.transactionHash,
+        fee: log.args.relayFee ?? 0n,
+      });
+    }
     for (const log of cancelled) {
       events.cancelled.set(log.args.id as bigint, log.transactionHash);
     }
@@ -105,13 +112,17 @@ export async function buildInvoicesCsv(
   const rows = [...invoices].reverse().map((invoice) => {
     const isPaid = invoice.payer !== zeroAddress;
     const created = events.created.get(invoice.id);
-    const paymentTx = events.paid.get(invoice.id) ?? "";
+    const payment = events.paid.get(invoice.id);
+    const paymentTx = payment?.hash ?? "";
+    // The gas repaid to the relayer. It is 0 when the customer paid their own gas.
+    const fee = payment?.fee ?? 0n;
     const customer = customers.get(String(invoice.id));
     return [
       String(invoice.id),
       customer?.merchantName ?? "",
       customer?.customerName ?? "",
       customer?.customerEmail ?? "",
+      customer?.customerWallet ?? "",
       customer?.memo ?? "",
       invoiceState(invoice, now).label,
       created ? utc(created.time) : "",
@@ -120,7 +131,8 @@ export async function buildInvoicesCsv(
       "USDT",
       usdt(invoice.amount),
       usdt(invoice.refunded),
-      usdt(isPaid ? invoice.amount - invoice.refunded : 0n),
+      usdt(fee),
+      usdt(isPaid ? invoice.amount - invoice.refunded - fee : 0n),
       isPaid ? invoice.payer : "",
       invoice.merchant,
       paymentTx,

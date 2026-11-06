@@ -89,8 +89,8 @@ The query filters on the writer wallet, because anyone can create entities with 
 ## PDF invoices on Swarm
 
 A merchant can attach a PDF to an invoice. The server encrypts it, stores it on Swarm, and records
-the Swarm reference in a second Arkiv entity. Only the merchant, the customer the invoice was sent
-to, and whoever paid it can open the PDF. Details are in [`arkiv/swarm.md`](arkiv/swarm.md).
+the Swarm reference in a second Arkiv entity. The PDF opens for the merchant, the customer the
+invoice was sent to, whoever paid it, and anyone holding the invoice's pay link. Details are in [`arkiv/swarm.md`](arkiv/swarm.md).
 
 ## Repo layout
 
@@ -128,7 +128,6 @@ pnpm dev
 - The gasless paths are proven in fork tests and in the app against a fork, but have not run on the
   live chain yet.
 - The SDK, subscriptions and reminders are not built yet.
-- A customer who pays from a wallet can open an invoice's PDF only after paying.
 - Encrypted customer details are stored on public Arkiv. This uses sample data on testnet and should
   move off Arkiv before real customers use it. See [`arkiv/why-arkiv.md`](arkiv/why-arkiv.md).
 - Arkiv records last about 182 days, and nothing renews them yet.

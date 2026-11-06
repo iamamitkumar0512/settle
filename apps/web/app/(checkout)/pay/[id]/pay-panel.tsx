@@ -193,6 +193,7 @@ function PayCard({ invoice, onChanged }: PayProps) {
   const session = useSession();
   const quote = useRelayQuote();
   const balance = useUsdtBalance(session.address);
+  const [paysOwnGas, setPaysOwnGas] = useState(false);
 
   if (!session.address || balance.data === undefined || quote.isPending) {
     return <p className="text-center text-muted">Checking your balance…</p>;
@@ -200,8 +201,12 @@ function PayCard({ invoice, onChanged }: PayProps) {
 
   const payer = session.address;
   const hasFunds = balance.data >= invoice.amount;
-  const gasless =
-    quote.available && invoice.relayFee >= quote.relayFee && invoice.amount >= quote.minInvoice;
+  const isWallet = session.kind === "wallet";
+  // The invoice's fee repays the relayer's gas. It still counts after gas has risen, up to double.
+  const canRelay =
+    quote.available && invoice.relayFee * 2n >= quote.relayFee && invoice.amount >= quote.minInvoice;
+  // A wallet can pay its own gas instead. The merchant then receives the whole amount.
+  const gasless = canRelay && !(isWallet && paysOwnGas);
 
   return (
     <>
@@ -215,13 +220,21 @@ function PayCard({ invoice, onChanged }: PayProps) {
           <span className="text-muted">You pay</span>
           <span className="figure">{formatUsdt(invoice.amount)} USDT</span>
         </div>
-        {gasless && (
-          <div className="flex justify-between gap-4">
-            <span className="text-muted">Network fee</span>
-            <span>Free</span>
-          </div>
-        )}
+        <div className="flex justify-between gap-4">
+          <span className="text-muted">Network fee</span>
+          <span>{gasless ? "Free for you" : "Gas from your wallet, in WBT"}</span>
+        </div>
       </div>
+      {isWallet && canRelay && hasFunds && (
+        <label className="flex items-center gap-2.5 text-[13px]/[18px]">
+          <input
+            type="checkbox"
+            checked={paysOwnGas}
+            onChange={(event) => setPaysOwnGas(event.target.checked)}
+          />
+          Pay the gas from my wallet in WBT instead
+        </label>
+      )}
       {!hasFunds && session.kind === "email" ? (
         <AddUsdt address={payer} missing={invoice.amount - balance.data} />
       ) : !hasFunds ? (
@@ -246,7 +259,7 @@ function PayCard({ invoice, onChanged }: PayProps) {
   );
 }
 
-// The fallback when Settle can't relay: the wallet approves and pays with its own gas.
+// The wallet approves and pays with its own gas, by choice or when Settle can't relay.
 function DirectPay({ invoice, onChanged }: PayProps) {
   const client = usePublicClient({ chainId: whitechainSepolia.id });
   const { address } = useSession();

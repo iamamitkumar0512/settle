@@ -4,6 +4,7 @@ import { MAX_PDF_BYTES } from "@/lib/invoice-pdf";
 import { readCustomerInvoices, readInvoiceFile, writeInvoiceFile } from "@/lib/server/arkiv";
 import { authenticate } from "@/lib/server/auth";
 import { decryptInvoiceFile, encryptInvoiceFile } from "@/lib/server/invoice-file";
+import { isPayLinkKey } from "@/lib/server/pay-link";
 import type { VerifiedAccount } from "@/lib/server/privy-identity";
 import { allow, HOUR } from "@/lib/server/rate-limit";
 import { clientIp } from "@/lib/server/relay-http";
@@ -32,13 +33,17 @@ function holds(account: VerifiedAccount, wallet: Address) {
   return account.wallets.some((own) => own.toLowerCase() === wallet.toLowerCase());
 }
 
-// The PDF can name the customer, so it opens only for the business, whoever paid, and the
-// customer the invoice was sent to.
+// The PDF can name the customer, so a logged-in account opens it only as the business, as
+// whoever paid, or as the customer the invoice was sent to.
 async function mayOpen(account: VerifiedAccount, invoice: Invoice) {
   if (holds(account, invoice.merchant)) return true;
   if (invoice.payer !== zeroAddress && holds(account, invoice.payer)) return true;
-  for (const email of account.emails) {
-    const billed = await readCustomerInvoices(email);
+  const customers = [
+    ...account.emails.map((email) => ({ email })),
+    ...account.wallets.map((wallet) => ({ wallet })),
+  ];
+  for (const customer of customers) {
+    const billed = await readCustomerInvoices(customer);
     if (billed.some((row) => row.id === String(invoice.id))) return true;
   }
   return false;
@@ -109,7 +114,8 @@ export async function PUT(request: Request, context: Context) {
   }
 }
 
-// Returns the decrypted PDF to someone allowed to open it.
+// Returns the decrypted PDF to whoever holds the invoice's pay link, or to a logged-in account
+// that is allowed to open it.
 export async function POST(request: Request, context: Context) {
   const id = await invoiceId(context);
   if (id === null) return fail(400, "invalid_request");
@@ -117,13 +123,19 @@ export async function POST(request: Request, context: Context) {
     return fail(429, "too_many_requests");
   }
 
-  const body = (await request.json().catch(() => null)) as { credentials?: unknown } | null;
-  const account = await authenticate(body?.credentials, request.headers.get("host"));
-  if (!account) return fail(401, "log_in_again");
+  const body = (await request.json().catch(() => null)) as {
+    credentials?: unknown;
+    linkKey?: unknown;
+  } | null;
+  const hasLink = isPayLinkKey(id, body?.linkKey);
+  const account = hasLink
+    ? null
+    : await authenticate(body?.credentials, request.headers.get("host"));
+  if (!hasLink && !account) return fail(401, "log_in_again");
 
   try {
     const { invoice } = await readInvoice(id);
-    if (!(await mayOpen(account, invoice))) return fail(403, "not_allowed");
+    if (account && !(await mayOpen(account, invoice))) return fail(403, "not_allowed");
     const file = await readInvoiceFile(id);
     if (!file) return fail(404, "no_pdf");
 

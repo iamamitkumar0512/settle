@@ -24,8 +24,13 @@ Code: [`swarm.ts`](../apps/web/lib/server/swarm.ts),
 The PDF can name the customer, so it is not public:
 
 - the merchant who created the invoice
-- the customer whose email the invoice was sent to
+- the customer the invoice was sent to, by email or by wallet address
 - the wallet that paid the invoice
+- anyone holding the invoice's pay link
+
+A pay link ends in `#k=<key>`. Browsers don't send that part to a server, so the key stays out of
+logs. The server derives the key from the invoice id and a secret, so nothing is stored and the
+merchant can copy the same link again later.
 
 The Swarm reference on Arkiv is public, but the bytes behind it are encrypted. The file's size
 still shows.
