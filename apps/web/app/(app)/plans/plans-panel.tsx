@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { CancelSubscription } from "@/components/cancel-subscription";
+import { cancelledBy, ProofLink } from "@/components/subscription-history";
 import { formatDateTime, formatUsdt, periodLabel, shortAddress } from "@/lib/format";
 import { postJson, relayErrorMessage } from "@/lib/relay-client";
 import type { Plan, PlanDetails, Subscription } from "@/lib/subscription";
@@ -11,6 +12,7 @@ import { useNow } from "@/lib/use-now";
 import { usePlanDetails } from "@/lib/use-plan-details";
 import { useSession } from "@/lib/use-session";
 import { useSignedAction } from "@/lib/use-signed-action";
+import { useSubscriptionRecords, type SubscriptionRecords } from "@/lib/use-subscription-records";
 import { usePlans, useSubscriptions } from "@/lib/use-subscriptions";
 
 type Refresh = () => Promise<unknown>;
@@ -180,21 +182,57 @@ function SubscriberItem({
   );
 }
 
+// A subscriber who has left, and how. Kept on the page so a cancellation leaves a record.
+function PastSubscriber({
+  subscription,
+  records,
+}: {
+  subscription: Subscription;
+  records: SubscriptionRecords | undefined;
+}) {
+  const made = records?.payments.length;
+  const payments =
+    made === undefined ? "" : ` · ${made} ${made === 1 ? "payment" : "payments"} made`;
+  let ended = "Completed";
+  if (subscription.periodsLeft > 0) {
+    ended = records?.cancelled
+      ? `Cancelled ${cancelledBy(records.cancelled.by, subscription.subscriber, "merchant")} · ${formatDateTime(records.cancelled.time)}`
+      : "Cancelled";
+  }
+
+  return (
+    <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t border-line px-5 py-3 text-[13px]/[18px] md:px-6">
+      <span>
+        <span className="figure">{shortAddress(subscription.subscriber)}</span>
+        <span className="text-muted">
+          {" · "}
+          {ended}
+          {payments}
+        </span>
+      </span>
+      {records?.cancelled && <ProofLink hash={records.cancelled.hash} />}
+    </li>
+  );
+}
+
 function PlanCard({
   plan,
   details,
   subscriptions,
+  records,
   now,
   onChanged,
 }: {
   plan: Plan;
   details?: PlanDetails;
   subscriptions: Subscription[];
+  records: (id: bigint) => SubscriptionRecords | undefined;
   now: bigint;
   onChanged: Refresh;
 }) {
   const active = subscriptions.filter((subscription) => subscription.active);
-  const past = subscriptions.length - active.length;
+  const ended = subscriptions.filter((subscription) => !subscription.active).reverse();
+  const past = ended.length;
 
   return (
     <section aria-label={`Plan ${plan.id}`} className="card overflow-hidden">
@@ -269,6 +307,17 @@ function PlanCard({
           </table>
         </div>
       )}
+      {ended.length > 0 && (
+        <ul aria-label={`Past subscribers of plan ${plan.id}`}>
+          {ended.map((subscription) => (
+            <PastSubscriber
+              key={String(subscription.id)}
+              subscription={subscription}
+              records={records(subscription.id)}
+            />
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
@@ -279,6 +328,16 @@ export function PlansPanel() {
   const subscriptions = useSubscriptions();
   const planDetails = usePlanDetails();
   const now = useNow();
+
+  const mine = plans.plans
+    .filter((plan) => plan.merchant.toLowerCase() === address?.toLowerCase())
+    .reverse();
+  // Only subscribers who have left: the proof of how each one ended.
+  const records = useSubscriptionRecords(
+    subscriptions.subscriptions.filter(
+      (subscription) => !subscription.active && mine.some(({ id }) => id === subscription.planId),
+    ),
+  );
 
   async function refresh() {
     await Promise.all([plans.refetch(), subscriptions.refetch()]);
@@ -303,10 +362,6 @@ export function PlansPanel() {
     );
   }
 
-  const mine = plans.plans
-    .filter((plan) => plan.merchant.toLowerCase() === address?.toLowerCase())
-    .reverse();
-
   if (mine.length === 0) {
     return (
       <section className="card flex flex-col items-center gap-3 px-6 py-16 text-center">
@@ -327,6 +382,7 @@ export function PlansPanel() {
           plan={plan}
           details={planDetails(plan.id)}
           subscriptions={subscriptions.subscriptions.filter(({ planId }) => planId === plan.id)}
+          records={records}
           now={now}
           onChanged={refresh}
         />
