@@ -88,7 +88,7 @@ its own relayer.
 | Renewal collected by itself (`charge`, 1 USDT) | [`0x062555b3…6ba4d4a2`](https://explorer.testnet.whitechain.io/tx/0x062555b35375e48219a18300d7285213640f23e6b7ad74fc1eccbbac6ba4d4a2) |
 | Subscription cancelled without gas (relayed `cancelWithSignature`) | [`0x3603ecd6…68a59f71`](https://explorer.testnet.whitechain.io/tx/0x3603ecd651156679f12eb962545ef377ccfe183e9c0760a22331cb4c68a59f71) |
 | Withdrawal without gas (relayed through `GaslessTransfer`, 0.50 USDT) | [`0xbc6b25cc…85969bb7`](https://explorer.testnet.whitechain.io/tx/0xbc6b25cc4bfff0d70079958b5cb13bef507752abd67bc61b6a9ee76e85969bb7) |
-| Sale to an AI agent over x402 (agent holds 0 WBT, merchant repays the gas in the same transaction) | [`0x93bebfb1…adb21a44`](https://explorer.testnet.whitechain.io/tx/0x93bebfb1c6399e8cb0fa81a2fda729760fed7ffe897d89da8c691deeadb21a44) |
+| Sale to an AI agent over x402, 3 USDT (a Gemini agent chose the order by itself, holds 0 WBT, and the merchant repays the gas in the same transaction) | [`0x27f6804c…9a45ba23`](https://explorer.testnet.whitechain.io/tx/0x27f6804c3b42eccba84d0c4c527777b1bd15f40529b77eb00fb42be19a45ba23) |
 | Store order paid through hosted checkout (Chai Point, on the published `@akhr2405/settle-pay`, 1.25 USDT) | [`0x5b21cefc…f8f3161a`](https://explorer.testnet.whitechain.io/tx/0x5b21cefc2ca09f6a17351bd157469b31aa0afb8d0c73700277fd0466f8f3161a) |
 | Settled USDT invoice (direct `pay`, 1 USDT, on the first version) | [`0x0b714b19…57c55065`](https://explorer.testnet.whitechain.io/tx/0x0b714b19f379aaa8677df1381f663006bf95eab8f6371d3ce25b835957c55065) |
 

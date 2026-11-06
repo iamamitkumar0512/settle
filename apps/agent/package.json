@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^1.6.0",
+    "@google/genai": "^3.0.0",
     "@x402/evm": "2.30.0",
     "@x402/fetch": "2.30.0",
     "viem": "^2.21.54",

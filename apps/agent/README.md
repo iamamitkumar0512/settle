@@ -24,7 +24,7 @@ Check everything from outside, with no AI involved. It makes one real purchase o
 pnpm agent:check
 ```
 
-Run the agent. It needs `ANTHROPIC_API_KEY` in the same file.
+Run the agent. It needs `GEMINI_API_KEY` in the same file.
 
 ```bash
 pnpm agent:start

@@ -25,7 +25,7 @@ Only you can do these, because they need your accounts, keys or funds.
 | 7 | A second Settle account, made with an email used only for the store | Its keys go into the store. |
 | 8 | An npm account | To publish `@akhr2405/settle-pay`. Optional, but the docs tell developers to install it. |
 | 9 | A Swarm postage batch, from the Swarm booth | Optional. Needed for the Swarm bonus. |
-| 10 | An `ANTHROPIC_API_KEY` | Optional. The restock agent's AI, for the video. The live check doesn't need it. |
+| 10 | A `GEMINI_API_KEY` | Optional. The restock agent's AI, for the video. The live check doesn't need it. |
 | 11 | A Gmail app password, or a domain verified in Resend | Optional. Either one lets Settle email reminders to customers. Gmail needs no domain: turn on 2-Step Verification, then create an app password at `myaccount.google.com/apppasswords`. Without either, "Email it from Settle" is hidden or in test mode. The mail app and copy options still work. |
 
 The relayer wallet is `0x21dc07cFe6Aa4f141b5950CFb72F310F5817836C`.
