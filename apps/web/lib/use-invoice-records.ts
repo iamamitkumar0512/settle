@@ -18,9 +18,14 @@ export type RefundRecord = InvoiceEvent & {
   amount: bigint;
 };
 
+// The fee is what Settle kept for sending the payment. It is 0 when the customer paid directly.
+export type PaymentRecord = InvoiceEvent & {
+  fee: bigint;
+};
+
 export type InvoiceRecords = {
   created?: InvoiceEvent;
-  paid?: InvoiceEvent;
+  paid?: PaymentRecord;
   cancelled?: InvoiceEvent;
   refunds: RefundRecord[];
 };
@@ -56,7 +61,9 @@ async function readRecords(client: PublicClient, id: bigint): Promise<InvoiceRec
     ]);
 
     if (created[0]) records.created = await toEvent(client, created[0]);
-    if (paid[0]) records.paid = await toEvent(client, paid[0]);
+    if (paid[0]) {
+      records.paid = { ...(await toEvent(client, paid[0])), fee: paid[0].args.relayFee ?? 0n };
+    }
     if (cancelled[0]) records.cancelled = await toEvent(client, cancelled[0]);
     for (const log of refunded) {
       records.refunds.push({

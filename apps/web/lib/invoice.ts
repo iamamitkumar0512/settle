@@ -14,6 +14,10 @@ export const INVOICE_LIMITS = {
   memoBytes: 500,
 } as const;
 
+export function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+}
+
 export type InvoiceDetails = {
   merchantName: string;
   customerName: string;
@@ -64,6 +68,7 @@ export type Invoice = {
   dueAt: bigint;
   paidAt: bigint;
   status: number;
+  relayFee: bigint;
 };
 
 export type InvoiceState = {
@@ -82,11 +87,12 @@ export type InvoiceRow = readonly [
   bigint,
   number,
   Hex,
+  bigint,
 ];
 
 export function toInvoice(id: bigint, row: InvoiceRow): Invoice {
-  const [merchant, payer, amount, refunded, dueAt, paidAt, status] = row;
-  return { id, merchant, payer, amount, refunded, dueAt, paidAt, status };
+  const [merchant, payer, amount, refunded, dueAt, paidAt, status, , relayFee] = row;
+  return { id, merchant, payer, amount, refunded, dueAt, paidAt, status, relayFee };
 }
 
 const DUE_SOON_SECONDS = 3n * 24n * 60n * 60n;

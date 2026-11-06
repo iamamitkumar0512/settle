@@ -2,7 +2,7 @@ import { formatUnits, zeroAddress, type Address, type Hash, type PublicClient } 
 import { registry, USDT_DECIMALS } from "./contracts";
 import { explorerTxUrl } from "./format";
 import { invoiceState, type Invoice } from "./invoice";
-import type { InvoiceCustomer } from "./merchant-session";
+import type { InvoiceCustomer } from "./customer-invoices";
 import { blockWindows, toEvent, type InvoiceEvent } from "./use-invoice-records";
 
 const HEADERS = [
