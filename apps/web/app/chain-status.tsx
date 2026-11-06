@@ -1,16 +1,15 @@
 "use client";
 
 import { useReadContract } from "wagmi";
-import { invoiceRegistryAbi, REGISTRY_ADDRESS } from "@/lib/contracts";
+import { registry } from "@/lib/contracts";
 
 export function ChainStatus() {
-  const { data: nextId, isPending, isError } = useReadContract({
-    address: REGISTRY_ADDRESS,
-    abi: invoiceRegistryAbi,
-    functionName: "nextId",
-  });
+  const { data: nextId } = useReadContract({ ...registry, functionName: "nextId" });
 
-  if (isPending) return <p className="text-muted">Connecting to Whitechain…</p>;
-  if (isError) return <p className="text-muted">Could not reach Whitechain.</p>;
-  return <p className="text-muted">Invoices created on Whitechain Sepolia: <span className="figure">{String(nextId - 1n)}</span></p>;
+  return (
+    <div className="flex items-baseline justify-between gap-4">
+      <span className="text-muted">Invoices created</span>
+      <span className="figure">{nextId === undefined ? "—" : String(nextId - 1n)}</span>
+    </div>
+  );
 }

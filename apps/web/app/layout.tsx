@@ -24,6 +24,9 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
+  const privyAppId = process.env.PRIVY_APP_ID;
+  if (!privyAppId) throw new Error("PRIVY_APP_ID is not configured");
+
   return (
     <html
       lang="en"
@@ -31,7 +34,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geist.variable} ${geistMono.variable} ${spaceGrotesk.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <Providers>{children}</Providers>
+        <Providers privyAppId={privyAppId}>{children}</Providers>
       </body>
     </html>
   );

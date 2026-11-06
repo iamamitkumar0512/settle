@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { InvoicesPanel } from "./invoices-panel";
 
+// These pages only render after login, so there is nothing to prerender for an instant navigation.
+export const instant = false;
+
 export default function DashboardPage() {
   return (
-    <main className="mx-auto flex w-full max-w-[1376px] flex-col gap-6 px-4 py-8 md:px-8">
+    <main className="mx-auto flex w-full max-w-[1376px] flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="display text-4xl/11">Invoices</h1>

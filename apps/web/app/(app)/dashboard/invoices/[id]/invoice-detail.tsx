@@ -3,14 +3,13 @@
 import Link from "next/link";
 import { useState } from "react";
 import type { Hash } from "viem";
-import { useConnection } from "wagmi";
-import { WalletGate } from "@/components/wallet-gate";
 import { explorerTxUrl, formatDate, formatDateTime, formatUsdt, shortAddress, shortHash } from "@/lib/format";
 import { InvoiceStatus, invoiceState, type Invoice } from "@/lib/invoice";
 import { useInvoice } from "@/lib/use-invoice";
 import { useInvoiceDetails } from "@/lib/use-invoice-details";
 import { useInvoiceRecords, type InvoiceRecords } from "@/lib/use-invoice-records";
-import { useMerchantDetails } from "@/lib/use-merchant-details";
+import { useMerchantCustomers } from "@/lib/use-merchant-customers";
+import { useSession } from "@/lib/use-session";
 import { CancelCard, RefundCard } from "./invoice-actions";
 
 type TimelineEntry = {
@@ -42,6 +41,16 @@ function timeline(invoice: Invoice, records: InvoiceRecords) {
       detail: `${formatDateTime(records.paid.time)} · from ${shortAddress(invoice.payer)}`,
       amount: `+${formatUsdt(invoice.amount)}`,
     });
+    if (records.paid.fee > 0n) {
+      entries.push({
+        ...records.paid,
+        key: "fee",
+        tone: "",
+        title: "Settle fee",
+        detail: "For sending the payment without gas",
+        amount: `−${formatUsdt(records.paid.fee)}`,
+      });
+    }
   }
   for (const refund of records.refunds) {
     entries.push({
@@ -123,9 +132,10 @@ function Detail({ invoice, onChanged }: { invoice: Invoice; onChanged: () => Pro
   const [now] = useState(() => BigInt(Math.floor(Date.now() / 1000)));
   const state = invoiceState(invoice, now);
   const isPaid = invoice.status === InvoiceStatus.Paid || invoice.status === InvoiceStatus.Refunded;
-  const merchant = useMerchantDetails();
+  const merchant = useMerchantCustomers();
   const { data: details } = useInvoiceDetails(invoice.id);
   const customer = merchant.customers.get(String(invoice.id));
+  const fee = useInvoiceRecords(invoice).data?.paid?.fee ?? 0n;
 
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_400px]">
@@ -164,7 +174,7 @@ function Detail({ invoice, onChanged }: { invoice: Invoice; onChanged: () => Pro
             />
             <Stat
               label="You kept"
-              value={isPaid ? formatUsdt(invoice.amount - invoice.refunded) : "0.00"}
+              value={isPaid ? formatUsdt(invoice.amount - invoice.refunded - fee) : "0.00"}
             />
           </div>
         </section>
@@ -188,7 +198,7 @@ function Detail({ invoice, onChanged }: { invoice: Invoice; onChanged: () => Pro
 
 function Loaded() {
   const { invoice, state, refetch } = useInvoice();
-  const { address } = useConnection();
+  const { address } = useSession();
 
   if (state === "notFound") {
     return <p className="card px-6 py-16 text-center">Invoice not found.</p>;
@@ -219,9 +229,5 @@ function Loaded() {
 }
 
 export function InvoiceDetail() {
-  return (
-    <WalletGate>
-      <Loaded />
-    </WalletGate>
-  );
+  return <Loaded />;
 }

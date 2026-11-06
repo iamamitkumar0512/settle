@@ -3,8 +3,6 @@
 import Link from "next/link";
 import { useState } from "react";
 import { zeroAddress } from "viem";
-import { useConnection } from "wagmi";
-import { WalletGate } from "@/components/wallet-gate";
 import { formatDate, formatUsdt, shortAddress } from "@/lib/format";
 import { buildInvoicesCsv } from "@/lib/invoices-csv";
 import { logsClient } from "@/lib/logs-client";
@@ -13,9 +11,10 @@ import {
   type Invoice,
   type InvoiceState,
 } from "@/lib/invoice";
-import type { InvoiceCustomer } from "@/lib/merchant-session";
-import { useMerchantDetails } from "@/lib/use-merchant-details";
+import type { InvoiceCustomer } from "@/lib/customer-invoices";
+import { useMerchantCustomers } from "@/lib/use-merchant-customers";
 import { useMerchantInvoices } from "@/lib/use-merchant-invoices";
+import { useSession } from "@/lib/use-session";
 
 const FILTERS = ["All", "Open", "Paid", "Refunded", "Cancelled"] as const;
 type Filter = (typeof FILTERS)[number];
@@ -107,7 +106,7 @@ function ExportButton({
   now: bigint;
   customers: Map<string, InvoiceCustomer>;
 }) {
-  const { address } = useConnection();
+  const { address } = useSession();
   const [exporting, setExporting] = useState(false);
   const [failed, setFailed] = useState(false);
 
@@ -212,37 +211,31 @@ function InvoiceRow({
   );
 }
 
-function CustomerSignIn({ merchant }: { merchant: ReturnType<typeof useMerchantDetails> }) {
+function CustomerSignIn() {
+  const { signIn } = useSession();
+
   return (
     <section className="card flex flex-wrap items-center justify-between gap-3 px-5 py-4">
       <div>
-        <div className="font-semibold">Customer details are encrypted</div>
+        <div className="font-semibold">Customer details are private</div>
         <div className="text-[13px]/[18px] text-muted">
-          Sign a message to view them. It costs no gas and lasts 24 hours.
+          Sign one message in your wallet to see them. It costs no gas.
         </div>
       </div>
-      {merchant.error && (
-        <span role="alert" className="text-[13px]/[18px] text-late">
-          {merchant.error}
-        </span>
-      )}
-      <button
-        type="button"
-        className="btn"
-        disabled={merchant.isSigningIn}
-        onClick={merchant.signIn}
-      >
-        {merchant.isSigningIn ? "Check your wallet" : "Show customer details"}
+      <button type="button" className="btn" onClick={() => signIn().catch(() => undefined)}>
+        Show customer details
       </button>
     </section>
   );
 }
 
 function InvoiceList() {
-  const { address } = useConnection();
-  const merchant = useMerchantDetails();
+  const session = useSession();
+  const { address } = session;
+  const merchant = useMerchantCustomers();
   const { invoices, isLoading, isError, retry } = useMerchantInvoices(address);
   const [filter, setFilter] = useState<Filter>("All");
+  const [search, setSearch] = useState("");
   const [now] = useState(() => BigInt(Math.floor(Date.now() / 1000)));
 
   if (isError) {
@@ -281,13 +274,24 @@ function InvoiceList() {
     invoice,
     state: invoiceState(invoice, now),
   }));
-  const visible = rows.filter(({ state }) => filter === "All" || state.group === filter);
+  const term = search.trim().toLowerCase();
+  const visible = rows.filter(({ invoice, state }) => {
+    if (filter !== "All" && state.group !== filter) return false;
+    if (!term) return true;
+    const customer = merchant.customers.get(String(invoice.id));
+    return [
+      `#${invoice.id}`,
+      customer?.memo,
+      customer?.customerName,
+      customer?.customerEmail,
+    ].some((value) => value?.toLowerCase().includes(term));
+  });
 
   return (
     <>
       <Summary rows={rows} />
-      {!merchant.isSignedIn && <CustomerSignIn merchant={merchant} />}
-      {merchant.isSignedIn && merchant.error && (
+      {session.kind === "wallet" && !merchant.isUnlocked && <CustomerSignIn />}
+      {merchant.error && (
         <p role="alert" className="text-[13px]/[18px] text-late">
           {merchant.error}
         </p>
@@ -306,11 +310,23 @@ function InvoiceList() {
               </button>
             ))}
           </div>
-          <ExportButton invoices={invoices} now={now} customers={merchant.customers} />
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="min-w-[200px] flex-1">
+              <span className="sr-only">Search invoices</span>
+              <input
+                className="input h-11 text-sm"
+                type="search"
+                placeholder={merchant.isUnlocked ? "Search customer or invoice" : "Search invoice number"}
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </label>
+            <ExportButton invoices={invoices} now={now} customers={merchant.customers} />
+          </div>
         </div>
         {visible.length === 0 ? (
           <p className="border-t border-line px-5 py-12 text-center text-muted">
-            No {filter.toLowerCase()} invoices.
+            {term ? "No invoices match your search." : `No ${filter.toLowerCase()} invoices.`}
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -334,7 +350,7 @@ function InvoiceList() {
                     invoice={invoice}
                     state={state}
                     customer={merchant.customers.get(String(invoice.id))}
-                    signedIn={merchant.isSignedIn}
+                    signedIn={merchant.isUnlocked}
                   />
                 ))}
               </tbody>
@@ -347,9 +363,5 @@ function InvoiceList() {
 }
 
 export function InvoicesPanel() {
-  return (
-    <WalletGate>
-      <InvoiceList />
-    </WalletGate>
-  );
+  return <InvoiceList />;
 }

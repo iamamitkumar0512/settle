@@ -1,24 +1,24 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
-import { formatEther, parseEventLogs, zeroHash, type Hash, type Hex } from "viem";
-import { useConnection, usePublicClient, useWriteContract } from "wagmi";
-import { WalletGate } from "@/components/wallet-gate";
-import { whitechainSepolia } from "@/lib/chains";
-import { invoiceRegistryAbi, registry, REGISTRY_ADDRESS } from "@/lib/contracts";
+import type { Hash, Hex } from "viem";
 import { explorerTxUrl, formatDate, formatUsdt } from "@/lib/format";
 import {
   dueDateToUnix,
   hashInvoiceDetails,
   INVOICE_LIMITS,
+  isValidEmail,
   newSalt,
   parseUsdtAmount,
   type InvoiceDetails,
 } from "@/lib/invoice";
+import { postJson } from "@/lib/relay-client";
 import { saveInvoiceDetails } from "@/lib/save-invoice-details";
-import { isInsufficientGas, isUserRejection } from "@/lib/wallet-errors";
+import { createInvoiceRequest } from "@/lib/typed-data";
+import { useRelayQuote } from "@/lib/use-relay-quote";
+import { useSession } from "@/lib/use-session";
+import { useSignedAction } from "@/lib/use-signed-action";
 
 // A character takes up to 4 bytes in UTF-8, so these always fit the byte limits.
 const MAX_MERCHANT_NAME = Math.floor(INVOICE_LIMITS.merchantNameBytes / 4);
@@ -34,7 +34,6 @@ const EMPTY_FORM = {
   dueDate: "",
 };
 
-type Stage = "editing" | "wallet" | "confirming";
 type SaveState = "saving" | "saved" | "failed";
 type CreatedInvoice = { id: bigint; hash: Hash; details: InvoiceDetails; salt: Hex };
 
@@ -117,39 +116,21 @@ function CreatedPanel({
 }
 
 export function NewInvoiceForm() {
-  const client = usePublicClient({ chainId: whitechainSepolia.id });
-  const { address } = useConnection();
-  const write = useWriteContract();
-  const fee = useQuery({
-    queryKey: ["create-invoice-fee", address],
-    enabled: Boolean(client && address),
-    refetchInterval: 60_000,
-    queryFn: async () => {
-      const dueAt = BigInt(Math.floor(Date.now() / 1000) + 86_400);
-      const [gas, gasPrice] = await Promise.all([
-        client!.estimateContractGas({
-          ...registry,
-          functionName: "create",
-          args: [1n, dueAt, zeroHash],
-          account: address,
-        }),
-        client!.getGasPrice(),
-      ]);
-      return gas * gasPrice;
-    },
-  });
+  const session = useSession();
+  const action = useSignedAction();
+  const quote = useRelayQuote();
 
   const [form, setForm] = useState(EMPTY_FORM);
-  const [stage, setStage] = useState<Stage>("editing");
   const [amountError, setAmountError] = useState<string>();
   const [dateError, setDateError] = useState<string>();
   const [nameError, setNameError] = useState<string>();
-  const [submitError, setSubmitError] = useState<string>();
-  const [sentHash, setSentHash] = useState<Hash>();
+  const [emailError, setEmailError] = useState<string>();
   const [created, setCreated] = useState<CreatedInvoice>();
-  const [saveState, setSaveState] = useState<SaveState>("saving");
+  const [saveState, setSaveState] = useState<SaveState>("saved");
 
-  const busy = stage !== "editing";
+  const { relayFee } = quote;
+  const minimum = quote.minInvoice > relayFee ? quote.minInvoice : relayFee + 1n;
+  const busy = action.busy;
 
   function update(field: keyof typeof EMPTY_FORM, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -165,81 +146,61 @@ export function NewInvoiceForm() {
 
   function reset() {
     setForm(EMPTY_FORM);
-    setSentHash(undefined);
-    setSubmitError(undefined);
+    action.clearError();
     setCreated(undefined);
   }
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
-    if (busy) return;
+    if (busy || !session.address) return;
 
     const amount = parseUsdtAmount(form.amount);
     const dueAt = dueDateToUnix(form.dueDate);
+    const amountValid = amount !== null && amount >= minimum;
     setAmountError(
-      amount === null ? "Enter an amount above 0, with up to 6 decimals." : undefined,
+      amount === null
+        ? "Enter an amount above 0, with up to 6 decimals."
+        : amountValid
+          ? undefined
+          : `Enter at least ${formatUsdt(minimum)} USDT.`,
     );
     setDateError(dueAt === null ? "Choose today or a later date." : undefined);
     setNameError(form.merchantName.trim() ? undefined : "Enter your business name.");
-    setSubmitError(undefined);
-    setSentHash(undefined);
-    if (amount === null || dueAt === null || !form.merchantName.trim()) return;
+    const emailValid = isValidEmail(form.customerEmail);
+    setEmailError(
+      emailValid ? undefined : "Enter your customer's email, so they can find this invoice.",
+    );
+    if (!amountValid || dueAt === null || !form.merchantName.trim() || !emailValid) return;
 
     const { merchantName, customerName, customerEmail, memo } = form;
     const details = { merchantName, customerName, customerEmail, memo };
     const salt = newSalt();
-    const ref = hashInvoiceDetails(details, salt);
+    const typed = createInvoiceRequest({
+      merchant: session.address,
+      amount,
+      dueAt,
+      ref: hashInvoiceDetails(details, salt),
+      relayFee,
+      salt: newSalt(),
+    });
 
-    let hash: Hash;
-    setStage("wallet");
-    try {
-      hash = await write.mutateAsync({
-        address: REGISTRY_ADDRESS,
-        abi: invoiceRegistryAbi,
-        functionName: "create",
-        args: [amount, dueAt, ref],
-        chainId: whitechainSepolia.id,
-      });
-    } catch (error) {
-      if (isUserRejection(error)) {
-        setSubmitError("You cancelled in your wallet. Nothing was created.");
-      } else if (isInsufficientGas(error)) {
-        setSubmitError("This wallet doesn't have enough WBT for gas.");
-      } else {
-        setSubmitError("The invoice wasn't created. Check your wallet and try again.");
-      }
-      setStage("editing");
-      return;
-    }
+    // One request: the server creates the invoice on-chain and saves its details.
+    const data = await action.run(typed, (signature) =>
+      postJson("/api/relay/create", {
+        request: typed.message,
+        signature,
+        details: { ...details, salt },
+      }),
+    );
+    if (!data) return;
 
-    setSentHash(hash);
-    setStage("confirming");
-    try {
-      const receipt = await client!.waitForTransactionReceipt({ hash });
-      const [log] = parseEventLogs({
-        abi: invoiceRegistryAbi,
-        eventName: "InvoiceCreated",
-        logs: receipt.logs,
-      });
-      if (receipt.status !== "success" || !log) {
-        setSubmitError("The transaction failed, so no invoice was created.");
-      } else {
-        const invoice = { id: log.args.id, hash, details, salt };
-        setCreated(invoice);
-        await saveDetails(invoice);
-      }
-    } catch {
-      // The transaction was sent, so asking to retry could create a duplicate.
-      setSubmitError(
-        "We sent the transaction but couldn't confirm it. Check it on the explorer before trying again.",
-      );
-    }
-    setStage("editing");
+    const invoice = { id: BigInt(data.id as string), hash: data.txHash as Hash, details, salt };
+    setCreated(invoice);
+    setSaveState(data.saved ? "saved" : "failed");
   }
 
   return (
-    <WalletGate>
-      <div className="grid items-start gap-6 lg:grid-cols-[7fr_5fr]">
+    <div className="grid items-start gap-6 lg:grid-cols-[7fr_5fr]">
         {created ? (
           <CreatedPanel
             id={created.id}
@@ -288,9 +249,15 @@ export function NewInvoiceForm() {
                     type="email"
                     autoComplete="off"
                     maxLength={MAX_CUSTOMER_FIELD}
+                    aria-invalid={emailError ? true : undefined}
                     value={form.customerEmail}
                     onChange={(event) => update("customerEmail", event.target.value)}
                   />
+                  {emailError && (
+                    <span role="alert" className="text-[13px]/[18px] font-normal text-late">
+                      {emailError}
+                    </span>
+                  )}
                 </label>
               </div>
               <label className="field">
@@ -343,37 +310,33 @@ export function NewInvoiceForm() {
                 </label>
               </div>
             </fieldset>
-            {fee.data !== undefined && (
+            {quote.available ? (
               <div className="well flex items-baseline justify-between gap-4 text-[13px]/[18px]">
-                <span className="text-muted">Creating this invoice costs you</span>
-                <span className="figure">
-                  about {Number(formatEther(fee.data)).toFixed(4)} WBT
-                </span>
+                <span className="text-muted">Settle fee, taken when the invoice is paid</span>
+                <span className="figure">{formatUsdt(relayFee)} USDT</span>
               </div>
+            ) : (
+              !quote.isPending && (
+                <p role="alert" className="well text-[13px]/[18px] text-late">
+                  Settle can&apos;t send transactions right now, so invoices can&apos;t be created.
+                </p>
+              )
             )}
-            {submitError && (
+            {action.error && (
               <p role="alert" className="text-[13px]/[18px] text-late">
-                {submitError}{" "}
-                {sentHash && (
-                  <a
-                    className="underline"
-                    href={explorerTxUrl(sentHash)}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    View transaction ↗
-                  </a>
-                )}
+                {action.error}
               </p>
             )}
             <div className="flex justify-end gap-2">
               <Link href="/dashboard" className="btn">
                 Cancel
               </Link>
-              <button type="submit" className="btn btn-primary min-w-[200px]" disabled={busy}>
-                {stage === "wallet" && "Confirm in your wallet"}
-                {stage === "confirming" && "Creating invoice…"}
-                {stage === "editing" && "Create invoice"}
+              <button
+                type="submit"
+                className="btn btn-primary min-w-[200px]"
+                disabled={busy || !quote.available}
+              >
+                {action.label("Create invoice", "Creating invoice…")}
               </button>
             </div>
           </form>
@@ -406,7 +369,6 @@ export function NewInvoiceForm() {
             </div>
           </div>
         </aside>
-      </div>
-    </WalletGate>
+    </div>
   );
 }
