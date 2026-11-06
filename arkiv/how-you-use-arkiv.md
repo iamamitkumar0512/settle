@@ -28,10 +28,18 @@ and that would be needed before real use.
 | Queries by merchant | The dashboard, invoice page and CSV show customers and descriptions |
 | Queries by customer | A customer logs in by email or with a wallet and sees invoices to pay and past invoices |
 | A second entity type | An invoice with a PDF shows a download button. The file is on Swarm; the entity says where |
+| A third entity type | A subscription plan shows its name and description on the subscribe page, the merchant's Plans page and the customer's list, instead of a number and an address |
 | Encrypted `bytes` column | Customers show as "Hidden" until the merchant signs in |
 | Creator filter | A stranger's fake entity with our schema name never appears on a pay page |
 | `readonly` | No visible control, but the details a customer saw can't change later |
 | Expiration | Nothing today. After about 182 days the app would fall back to addresses |
+
+## How a plan record is written
+
+The same way as an invoice. The merchant signs a request to publish the plan, and that request
+carries a hash of the plan's name and description. The server checks the details against the
+hash, publishes the plan on Whitechain, then writes one `readonly` entity. Nobody else can attach
+a name to a merchant's plan, because only the merchant's signature commits to it.
 
 ## How a record is written
 

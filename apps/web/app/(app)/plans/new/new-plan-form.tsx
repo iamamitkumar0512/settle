@@ -1,15 +1,24 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
-import { zeroHash, type Hash } from "viem";
+import type { Hash } from "viem";
 import { explorerTxUrl, formatUsdt, periodLabel } from "@/lib/format";
 import { newSalt, parseUsdtAmount } from "@/lib/invoice";
 import { postJson } from "@/lib/relay-client";
+import { hashPlanDetails, PLAN_LIMITS, type PlanDetails } from "@/lib/subscription";
 import { planRequest } from "@/lib/typed-data";
 import { useRelayQuote } from "@/lib/use-relay-quote";
 import { useSession } from "@/lib/use-session";
 import { useSignedAction } from "@/lib/use-signed-action";
+
+// A character takes up to 4 bytes in UTF-8, so these always fit the byte limits.
+const MAX_NAME = Math.floor(PLAN_LIMITS.nameBytes / 4);
+const MAX_DESCRIPTION = Math.floor(PLAN_LIMITS.descriptionBytes / 4);
+
+type SaveState = "saving" | "saved" | "failed";
+type CreatedPlan = { planId: bigint; hash: Hash; details: PlanDetails };
 
 // A month is 30 days. The shortest one is there so a renewal can be watched happening.
 const PERIODS = [
@@ -19,7 +28,19 @@ const PERIODS = [
   { seconds: 60, label: "Every minute (for testing)" },
 ];
 
-function CreatedPanel({ planId, hash, onReset }: { planId: bigint; hash: Hash; onReset: () => void }) {
+function CreatedPanel({
+  planId,
+  hash,
+  saveState,
+  onRetrySave,
+  onReset,
+}: {
+  planId: bigint;
+  hash: Hash;
+  saveState: SaveState;
+  onRetrySave: () => void;
+  onReset: () => void;
+}) {
   const [copied, setCopied] = useState(false);
   const link = `${window.location.origin}/subscribe/${planId}`;
 
@@ -43,6 +64,20 @@ function CreatedPanel({ planId, hash, onReset }: { planId: bigint; hash: Hash; o
           {copied ? "Link copied" : "Copy subscribe link"}
         </button>
       </div>
+      {saveState === "failed" ? (
+        <div role="alert" className="well flex flex-wrap items-center justify-between gap-3">
+          <span className="text-[13px]/[18px] text-late">
+            The plan exists, but its name wasn&apos;t saved. Stay on this page and retry.
+          </span>
+          <button type="button" className="btn" onClick={onRetrySave}>
+            Retry saving
+          </button>
+        </div>
+      ) : (
+        <p className="text-[13px]/[18px] text-muted">
+          {saveState === "saving" ? "Saving plan details…" : "Plan details saved."}
+        </p>
+      )}
       <a
         href={explorerTxUrl(hash)}
         target="_blank"
@@ -52,7 +87,7 @@ function CreatedPanel({ planId, hash, onReset }: { planId: bigint; hash: Hash; o
         View on explorer ↗
       </a>
       <div className="flex flex-wrap justify-end gap-2">
-        <button type="button" className="btn" onClick={onReset}>
+        <button type="button" className="btn" disabled={saveState === "saving"} onClick={onReset}>
           Create another
         </button>
         <Link href="/plans" className="btn btn-primary">
@@ -67,10 +102,16 @@ export function NewPlanForm() {
   const session = useSession();
   const action = useSignedAction();
   const quote = useRelayQuote();
+  const queryClient = useQueryClient();
+  const [merchantName, setMerchantName] = useState("");
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
   const [amountText, setAmountText] = useState("");
   const [period, setPeriod] = useState(PERIODS[0].seconds);
+  const [nameError, setNameError] = useState<string>();
   const [amountError, setAmountError] = useState<string>();
-  const [created, setCreated] = useState<{ planId: bigint; hash: Hash }>();
+  const [created, setCreated] = useState<CreatedPlan>();
+  const [saveState, setSaveState] = useState<SaveState>("saved");
 
   // The fee is taken from every payment, so it has to leave the merchant something.
   const relayFee = quote.chargeFee;
@@ -81,23 +122,41 @@ export function NewPlanForm() {
     if (action.busy || !session.address) return;
 
     const amount = parseUsdtAmount(amountText);
-    if (amount === null || amount < minimum) {
-      return setAmountError(`Enter at least ${formatUsdt(minimum)} USDT, with up to 6 decimals.`);
-    }
-    setAmountError(undefined);
+    const amountValid = amount !== null && amount >= minimum;
+    const namesValid = merchantName.trim().length > 0 && name.trim().length > 0;
+    setAmountError(
+      amountValid
+        ? undefined
+        : `Enter at least ${formatUsdt(minimum)} USDT, with up to 6 decimals.`,
+    );
+    setNameError(namesValid ? undefined : "Enter your business name and a name for the plan.");
+    if (!amountValid || !namesValid) return;
 
+    const details = { merchantName, name, description };
     const typed = planRequest({
       merchant: session.address,
       amount,
       period,
-      ref: zeroHash,
+      ref: hashPlanDetails(details),
       relayFee,
       salt: newSalt(),
     });
+    // One request: the server publishes the plan on-chain and saves its details.
     const data = await action.run(typed, (signature) =>
-      postJson("/api/relay/plans", { request: typed.message, signature }),
+      postJson("/api/relay/plans", { request: typed.message, signature, details }),
     );
-    if (data) setCreated({ planId: BigInt(data.planId as string), hash: data.txHash as Hash });
+    if (!data) return;
+
+    setCreated({ planId: BigInt(data.planId as string), hash: data.txHash as Hash, details });
+    setSaveState(data.saved ? "saved" : "failed");
+    await queryClient.invalidateQueries({ queryKey: ["plan-details"] });
+  }
+
+  async function saveDetails(plan: CreatedPlan) {
+    setSaveState("saving");
+    const result = await postJson(`/api/plans/${plan.planId}/details`, plan.details);
+    setSaveState(result.ok ? "saved" : "failed");
+    if (result.ok) await queryClient.invalidateQueries({ queryKey: ["plan-details"] });
   }
 
   if (created) {
@@ -105,8 +164,12 @@ export function NewPlanForm() {
       <CreatedPanel
         planId={created.planId}
         hash={created.hash}
+        saveState={saveState}
+        onRetrySave={() => saveDetails(created)}
         onReset={() => {
           setCreated(undefined);
+          setName("");
+          setDescription("");
           setAmountText("");
         }}
       />
@@ -117,6 +180,48 @@ export function NewPlanForm() {
     <form className="card flex flex-col gap-5 p-6" onSubmit={onSubmit} noValidate>
       <fieldset disabled={action.busy} className="flex flex-col gap-5">
         <legend className="sr-only">Plan details</legend>
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="field">
+            Your business name
+            <input
+              className="input"
+              type="text"
+              autoComplete="organization"
+              maxLength={MAX_NAME}
+              aria-invalid={nameError && !merchantName.trim() ? true : undefined}
+              value={merchantName}
+              onChange={(event) => setMerchantName(event.target.value)}
+            />
+          </label>
+          <label className="field">
+            Plan name
+            <input
+              className="input"
+              type="text"
+              autoComplete="off"
+              maxLength={MAX_NAME}
+              aria-invalid={nameError && !name.trim() ? true : undefined}
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+          </label>
+        </div>
+        {nameError && (
+          <p role="alert" className="-mt-2 text-[13px]/[18px] text-late">
+            {nameError}
+          </p>
+        )}
+        <label className="field">
+          What does the customer get?
+          <input
+            className="input"
+            type="text"
+            autoComplete="off"
+            maxLength={MAX_DESCRIPTION}
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+          />
+        </label>
         <div className="grid gap-4 md:grid-cols-2">
           <label className="field">
             Amount per payment

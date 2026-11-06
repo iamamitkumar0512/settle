@@ -5,9 +5,10 @@ import { useState } from "react";
 import { CancelSubscription } from "@/components/cancel-subscription";
 import { formatDateTime, formatUsdt, periodLabel, shortAddress } from "@/lib/format";
 import { postJson, relayErrorMessage } from "@/lib/relay-client";
-import type { Plan, Subscription } from "@/lib/subscription";
+import type { Plan, PlanDetails, Subscription } from "@/lib/subscription";
 import { closePlanRequest } from "@/lib/typed-data";
 import { useNow } from "@/lib/use-now";
+import { usePlanDetails } from "@/lib/use-plan-details";
 import { useSession } from "@/lib/use-session";
 import { useSignedAction } from "@/lib/use-signed-action";
 import { usePlans, useSubscriptions } from "@/lib/use-subscriptions";
@@ -145,11 +146,13 @@ function SubscriberRow({
 
 function PlanCard({
   plan,
+  details,
   subscriptions,
   now,
   onChanged,
 }: {
   plan: Plan;
+  details?: PlanDetails;
   subscriptions: Subscription[];
   now: bigint;
   onChanged: Refresh;
@@ -163,16 +166,22 @@ function PlanCard({
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="display text-xl">
-              Plan <span className="figure">#{String(plan.id)}</span>
+              {details?.name ?? (
+                <>
+                  Plan <span className="figure">#{String(plan.id)}</span>
+                </>
+              )}
             </h2>
             <span className={`pill ${plan.active ? "tone-paid" : ""}`}>
               {plan.active ? "Active" : "Closed"}
             </span>
           </div>
+          {details?.description && <p className="mt-1 text-muted">{details.description}</p>}
           <p className="mt-1">
             <span className="figure">{formatUsdt(plan.amount)} USDT</span> {periodLabel(plan.period)}
           </p>
           <p className="mt-0.5 text-[13px]/[18px] text-muted">
+            {details && <>Plan #{String(plan.id)} · </>}
             {active.length} active {active.length === 1 ? "subscriber" : "subscribers"}
             {past > 0 && `, ${past} ended`} · {formatUsdt(plan.relayFee)} USDT network fee per
             payment
@@ -219,6 +228,7 @@ export function PlansPanel() {
   const { address } = useSession();
   const plans = usePlans();
   const subscriptions = useSubscriptions();
+  const planDetails = usePlanDetails();
   const now = useNow();
 
   async function refresh() {
@@ -266,6 +276,7 @@ export function PlansPanel() {
         <PlanCard
           key={String(plan.id)}
           plan={plan}
+          details={planDetails(plan.id)}
           subscriptions={subscriptions.subscriptions.filter(({ planId }) => planId === plan.id)}
           now={now}
           onChanged={refresh}

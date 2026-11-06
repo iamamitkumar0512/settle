@@ -20,6 +20,7 @@ import { postJson, splitSignature } from "@/lib/relay-client";
 import { toSubscription, type Plan } from "@/lib/subscription";
 import { subscribeRequest, subscriptionPermit } from "@/lib/typed-data";
 import { useRelayQuote } from "@/lib/use-relay-quote";
+import { usePlanDetails } from "@/lib/use-plan-details";
 import { useSession } from "@/lib/use-session";
 import { useSignedAction } from "@/lib/use-signed-action";
 import { usePlan } from "@/lib/use-subscriptions";
@@ -33,17 +34,23 @@ function parsePlanId(value: unknown) {
 }
 
 function PlanSummary({ plan }: { plan: Plan }) {
+  const details = usePlanDetails()(plan.id);
+
   return (
     <>
       <div>
         <div className="text-muted">
-          <span className="figure">{shortAddress(plan.merchant)}</span> offers a subscription for
+          {details?.merchantName ?? (
+            <span className="figure">{shortAddress(plan.merchant)}</span>
+          )}{" "}
+          offers {details ? <span className="text-ink">{details.name}</span> : "a subscription"} for
         </div>
         <div className="figure mt-1 text-5xl/[56px] tracking-tight md:text-[56px]/[64px]">
           {formatUsdt(plan.amount)}
         </div>
         <div className="figure text-lg text-muted">USDT {periodLabel(plan.period)}</div>
       </div>
+      {details?.description && <p className="border-t border-line pt-4">{details.description}</p>}
       <div className="flex flex-wrap gap-8 border-t border-line pt-4">
         <div>
           <div className="label">Paid to</div>

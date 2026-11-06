@@ -1,4 +1,4 @@
-import type { Address, Hex } from "viem";
+import { keccak256, stringToHex, type Address, type Hex } from "viem";
 
 // A merchant's recurring offer. Amounts are USDT in base units, 6 decimals.
 export type Plan = {
@@ -22,6 +22,25 @@ export type Subscription = {
   periodsLeft: number;
   active: boolean;
 };
+
+export const PLAN_LIMITS = {
+  merchantNameBytes: 128,
+  nameBytes: 128,
+  descriptionBytes: 500,
+} as const;
+
+// What a customer reads before subscribing. Saved on Arkiv, and public like the plan itself.
+export type PlanDetails = {
+  merchantName: string;
+  name: string;
+  description: string;
+};
+
+// The plan's on-chain `ref`. The merchant signs it, so only the details they wrote can be saved.
+export function hashPlanDetails(details: PlanDetails): Hex {
+  const { merchantName, name, description } = details;
+  return keccak256(stringToHex(JSON.stringify({ merchantName, name, description })));
+}
 
 export type PlanRow = readonly [Address, bigint, number, bigint, Hex, boolean];
 export type SubscriptionRow = readonly [bigint, Address, bigint, number, boolean];

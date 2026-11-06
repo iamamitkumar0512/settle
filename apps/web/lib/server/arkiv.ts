@@ -10,8 +10,9 @@ import { addr, bytes, defineSchema, str, u256, u64 } from "@arkiv-network/sdk/sc
 import { hexToBytes, hexToString, http, stringToBytes, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { getGasPrice } from "viem/actions";
-import { REGISTRY_ADDRESS } from "@/lib/contracts";
+import { REGISTRY_ADDRESS, SUBSCRIPTIONS_ADDRESS } from "@/lib/contracts";
 import type { CustomerInvoice, InvoiceCustomer } from "@/lib/customer-invoices";
+import type { PlanDetails } from "@/lib/subscription";
 import { customerLookup, normalizeEmail, walletLookup } from "./customer-lookup";
 import { FILE_ENCRYPTION } from "./invoice-file";
 import { payLinkKey } from "./pay-link";
@@ -56,6 +57,25 @@ type InvoiceFileInput = {
   merchant: Address;
   reference: string;
   size: number;
+};
+
+// A subscription plan's offer. Nothing here is private: anyone with the link may read it.
+const PlanRecord = defineSchema("settle_plan_v1", {
+  contract: addr().indexed(),
+  plan_id: u64().indexed(),
+  merchant: addr().indexed(),
+  amount_usdt: u256(),
+  period_seconds: u64(),
+  merchant_name: str(),
+  plan_name: str(),
+  public_details: bytes(),
+});
+
+type PlanRecordInput = PlanDetails & {
+  id: bigint;
+  merchant: Address;
+  amount: bigint;
+  period: number;
 };
 
 type InvoiceRecordInput = PrivateDetails & {
@@ -138,6 +158,51 @@ export async function readInvoiceFile(id: bigint) {
     mediaType: row.media_type.value,
     size: Number(row.size_bytes.value),
   };
+}
+
+function descriptionFrom(publicDetails: Hex) {
+  try {
+    const { description } = JSON.parse(hexToString(publicDetails)) as { description?: unknown };
+    return typeof description === "string" ? description : "";
+  } catch {
+    return "";
+  }
+}
+
+export async function planRecordExists(id: bigint) {
+  const page = await arkivReader()
+    .select({ $key: true })
+    .from(PlanRecord)
+    .where(and(eq("contract", addr(SUBSCRIPTIONS_ADDRESS)), eq("plan_id", u64(id))))
+    .createdBy(writerAccount().address)
+    .limit(1)
+    .fetch();
+  return page.entities.length > 0;
+}
+
+// The saved details of every plan, keyed by plan id.
+export async function readPlanRecords() {
+  const plans: Record<string, PlanDetails> = {};
+  const reader = arkivReader();
+
+  for (let offset = 0; ; offset += PAGE_SIZE) {
+    const page = await reader
+      .select({ plan_id: true, merchant_name: true, plan_name: true, public_details: true })
+      .from(PlanRecord)
+      .where(and(eq("contract", addr(SUBSCRIPTIONS_ADDRESS))))
+      .createdBy(writerAccount().address)
+      .limit(PAGE_SIZE)
+      .offset(offset)
+      .fetch();
+    for (const row of page.entities) {
+      plans[String(BigInt(row.plan_id.value))] = {
+        merchantName: row.merchant_name.value,
+        name: row.plan_name.value,
+        description: descriptionFrom(row.public_details.value),
+      };
+    }
+    if (page.entities.length < PAGE_SIZE) return plans;
+  }
 }
 
 export async function readMerchantInvoiceIds(merchant: Address) {
@@ -337,4 +402,29 @@ async function createFileRecord({ id, merchant, reference, size }: InvoiceFileIn
 
 export function writeInvoiceFile(input: InvoiceFileInput) {
   return oneAtATime(() => createFileRecord(input));
+}
+
+async function createPlanRecord(input: PlanRecordInput) {
+  const { id, merchant, amount, period, merchantName, name, description } = input;
+  const { wallet, transaction } = await writer();
+  // Never retried here, for the same reason as above.
+  return wallet.createEntity(
+    PlanRecord,
+    {
+      contract: addr(SUBSCRIPTIONS_ADDRESS),
+      plan_id: u64(id),
+      merchant: addr(merchant),
+      amount_usdt: u256(amount),
+      period_seconds: u64(BigInt(period)),
+      merchant_name: str(merchantName),
+      plan_name: str(name),
+      public_details: bytes(stringToBytes(JSON.stringify({ description }))),
+    },
+    { expiration: ExpirationTime.max(), flags: { readonly: true } },
+    transaction,
+  );
+}
+
+export function writePlanRecord(input: PlanRecordInput) {
+  return oneAtATime(() => createPlanRecord(input));
 }

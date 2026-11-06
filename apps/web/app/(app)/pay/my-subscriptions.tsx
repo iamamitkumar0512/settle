@@ -2,6 +2,7 @@
 
 import { CancelSubscription } from "@/components/cancel-subscription";
 import { formatDateTime, formatUsdt, periodLabel, shortAddress } from "@/lib/format";
+import { usePlanDetails } from "@/lib/use-plan-details";
 import { useSession } from "@/lib/use-session";
 import { usePlans, useSubscriptions } from "@/lib/use-subscriptions";
 
@@ -10,6 +11,7 @@ export function MySubscriptions() {
   const { address } = useSession();
   const plans = usePlans();
   const subscriptions = useSubscriptions();
+  const planDetails = usePlanDetails();
 
   const mine = subscriptions.subscriptions
     .filter(
@@ -25,6 +27,7 @@ export function MySubscriptions() {
       <ul className="flex flex-col gap-3">
         {mine.map((subscription) => {
           const plan = plans.plans.find(({ id }) => id === subscription.planId);
+          const details = planDetails(subscription.planId);
           return (
             <li
               key={String(subscription.id)}
@@ -33,7 +36,9 @@ export function MySubscriptions() {
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="display text-lg">
-                    {plan ? (
+                    {details ? (
+                      `${details.name} from ${details.merchantName}`
+                    ) : plan ? (
                       <>
                         Plan <span className="figure">#{String(plan.id)}</span> from{" "}
                         <span className="figure">{shortAddress(plan.merchant)}</span>

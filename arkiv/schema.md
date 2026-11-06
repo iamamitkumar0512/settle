@@ -6,7 +6,7 @@ customer details.
 
 ## Entities
 
-There are two entity types, both defined in
+There are three entity types, all defined in
 [`apps/web/lib/server/arkiv.ts`](../apps/web/lib/server/arkiv.ts).
 
 ### `settle_invoice_v2`: one per invoice
@@ -44,6 +44,22 @@ An invoice is sent to an email address or to a wallet address, so one of `custom
 `customerWallet` is empty. `customer_lookup` is a keyed hash of whichever one is set. A wallet
 customer proves the address by signing a message, and an email customer by logging in.
 
+### `settle_plan_v1`: one per subscription plan
+
+A plan is a public offer, so nothing in it is encrypted. The contract holds the amount, the period
+and who is subscribed. Arkiv holds what a customer reads before subscribing.
+
+| Column | Type | Indexed | Public | Purpose |
+|---|---|---|---|---|
+| `contract` | `addr` | Yes | Yes | Which `Subscriptions` deployment the plan belongs to |
+| `plan_id` | `u64` | Yes | Yes | The on-chain plan id |
+| `merchant` | `addr` | Yes | Yes | The merchant wallet |
+| `amount_usdt` | `u256` | No | Yes | Amount per payment in USDT, 6 decimals |
+| `period_seconds` | `u64` | No | Yes | Time between payments |
+| `merchant_name` | `str` | No | Yes | Business name, up to 128 bytes |
+| `plan_name` | `str` | No | Yes | Plan name, up to 128 bytes |
+| `public_details` | `bytes` | No | Yes | JSON: `{ description }` |
+
 ## Fields we query
 
 | Query | Filters | Used by |
@@ -53,6 +69,8 @@ customer proves the address by signing a message, and an email customer by loggi
 | All of a merchant's invoices | `registry`, `merchant`, creator | Dashboard, invoice page, CSV |
 | Invoices sent to one customer | `registry`, `customer_lookup`, creator | Customer invoices page |
 | The PDF attached to one invoice | `registry`, `invoice_id`, creator | Pay page, invoice page |
+| Does this plan have a record? | `contract`, `plan_id`, creator | Saving plan details |
+| Every plan's name and description | `contract`, creator | Plans page, subscribe page, a customer's subscriptions |
 
 `due_at` is indexed for overdue queries, but the app doesn't query it yet. Overdue status comes from
 the contract's due date.
@@ -89,7 +107,16 @@ To list them:
 ARKIV_ACCESS_KEY=<your key> node apps/web/scripts/arkiv-query.mjs
 ```
 
-These sample records belong to a separate test deployment of the contract:
+A sample plan record from a test deployment of `Subscriptions`,
+`0x70e2cc242b49f0f9e46454069f840c038dc87097`:
+`0xc3543388318d2c5f4e8cc6b7b8ac78e6a9f434690209b62c7963883ce78d8d6b`. To list it, add both test
+addresses:
+
+```bash
+ARKIV_ACCESS_KEY=<your key> node apps/web/scripts/arkiv-query.mjs 0x91d1f1de74761d2892d8434482f8b299f0d38390 0x70e2cc242b49f0f9e46454069f840c038dc87097
+```
+
+These sample invoice records belong to another test deployment:
 
 - Registry: `0x0862eb825530db019ed13dbb1a1ef0c6567ba25e`
 - Entity key: `0x3a4d720cc8616aea6603a6b2c2c7c179f62c9e83a9c544f8cc3427f4c150189e`

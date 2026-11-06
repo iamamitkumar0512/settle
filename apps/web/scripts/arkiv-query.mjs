@@ -1,6 +1,6 @@
-// Lists Settle's public invoice records on Arkiv, and the PDFs attached to them. Needs only a
-// free access key:
-//   ARKIV_ACCESS_KEY=<key> node apps/web/scripts/arkiv-query.mjs [registry address]
+// Lists Settle's public records on Arkiv: invoices, the PDFs attached to them, and subscription
+// plans. Needs only a free access key:
+//   ARKIV_ACCESS_KEY=<key> node apps/web/scripts/arkiv-query.mjs [registry] [subscriptions]
 // Encrypted customer fields are returned as stored, so this script can't read them. A PDF's
 // Swarm reference is public, but the bytes behind it are encrypted too.
 import { createPublicClient } from "@arkiv-network/sdk";
@@ -11,6 +11,7 @@ import { formatUnits, hexToString, http } from "viem";
 
 const WRITER = "0x7d404608B53998044fDDf5d07f6da8092d155278";
 const LIVE_REGISTRY = "0x4c6F09e112CaF53f2922b382DafD8Aa95826628F";
+const LIVE_SUBSCRIPTIONS = "0x9dcBde22A2aD70249f188d649236b788DDBd4C61";
 
 const InvoiceRecord = defineSchema("settle_invoice_v2", {
   registry: addr().indexed(),
@@ -35,6 +36,17 @@ const InvoiceFile = defineSchema("settle_invoice_file_v1", {
   encryption: str(),
 });
 
+const PlanRecord = defineSchema("settle_plan_v1", {
+  contract: addr().indexed(),
+  plan_id: u64().indexed(),
+  merchant: addr().indexed(),
+  amount_usdt: u256(),
+  period_seconds: u64(),
+  merchant_name: str(),
+  plan_name: str(),
+  public_details: bytes(),
+});
+
 const accessKey = process.env.ARKIV_ACCESS_KEY;
 if (!accessKey) {
   console.error("Set ARKIV_ACCESS_KEY. Get a free key at https://hub.arkiv.network/access-keys");
@@ -47,6 +59,7 @@ const client = createPublicClient({
 });
 
 const registry = process.argv[2] ?? LIVE_REGISTRY;
+const subscriptions = process.argv[3] ?? LIVE_SUBSCRIPTIONS;
 
 const page = await client
   .select({
@@ -105,6 +118,38 @@ const files = filePage.entities.map((row) => ({
   encryption: row.encryption.value,
 }));
 
+const planPage = await client
+  .select({
+    $key: true,
+    plan_id: true,
+    merchant: true,
+    amount_usdt: true,
+    period_seconds: true,
+    merchant_name: true,
+    plan_name: true,
+    public_details: true,
+  })
+  .from(PlanRecord)
+  .where(and(eq("contract", addr(subscriptions))))
+  .createdBy(WRITER)
+  .limit(20)
+  .fetch();
+
+const plans = planPage.entities.map((row) => ({
+  entityKey: row.$key,
+  planId: String(row.plan_id.value),
+  merchant: row.merchant.value,
+  merchantName: row.merchant_name.value,
+  planName: row.plan_name.value,
+  amountUsdt: formatUnits(BigInt(row.amount_usdt.value), 6),
+  periodSeconds: String(row.period_seconds.value),
+  publicDetails: hexToString(row.public_details.value),
+}));
+
 console.log(
-  JSON.stringify({ registry, writer: WRITER, count: rows.length, rows, files }, null, 2),
+  JSON.stringify(
+    { registry, subscriptions, writer: WRITER, count: rows.length, rows, files, plans },
+    null,
+    2,
+  ),
 );

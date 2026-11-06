@@ -130,7 +130,8 @@ balance, and it stops relaying below 0.005 WBT.
 ## Invoice details on Arkiv
 
 The contract holds the money and status. Arkiv holds each invoice's business name and description,
-plus encrypted customer details that only the merchant can read. A customer finds their invoices
+plus encrypted customer details that only the merchant can read. It also holds each subscription
+plan's name and description. A customer finds their invoices
 by the email or wallet address they were sent to. Details are in
 [`arkiv/schema.md`](arkiv/schema.md).
 
@@ -146,7 +147,7 @@ pnpm install
 ARKIV_ACCESS_KEY=<your key> node apps/web/scripts/arkiv-query.mjs
 ```
 
-This lists the records of the two invoices on the live contract. To see sample records from a test
+This lists the records of the two invoices on the live contract, and any subscription plans. To see sample records from a test
 deployment, add its address: `0x0862eb825530db019ed13dbb1a1ef0c6567ba25e`.
 
 The query filters on the writer wallet, because anyone can create entities with the same schema name.
@@ -211,9 +212,8 @@ To deploy it, see [`DEPLOY.md`](DEPLOY.md).
   proven in fork tests and in the app against a fork.
 - An invoice keeps the fee estimated when it was created, so the relayer can be repaid a little
   more or less than the gas it later spends.
-- Nobody has subscribed on the live chain yet. A plan has no name or description yet. A wallet
-  customer signs twice to subscribe. Due payments are collected once a day, or when the merchant
-  collects one from the Plans page.
+- Nobody has subscribed on the live chain yet. A wallet customer signs twice to subscribe. Due
+  payments are collected once a day, or when the merchant collects one from the Plans page.
 - Reminders are not built yet.
 - The relayer is one wallet with one send queue, and rate limits are counted in memory. Both
   assume a single running copy of the app.
