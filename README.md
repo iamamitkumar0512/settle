@@ -35,6 +35,7 @@ with its own relayer.
 |---|---|
 | InvoiceRegistry deployment | [`0x02b6cfbd…15388320`](https://explorer.testnet.whitechain.io/tx/0x02b6cfbd5715928eecfd5bd5b8283c9f9c8811cd8803ba840a2ceba615388320) |
 | GaslessTransfer deployment | [`0x86e52fbb…a6d2d718`](https://explorer.testnet.whitechain.io/tx/0x86e52fbb3689982c5fbfa2c112e5eefd560304f1ddc3fe6aa045a520a6d2d718) |
+| Gasless USDT payment (relayed `payWithAuthorization`, 1 USDT) | [`0x8c7dfc4c…79e4eeb2`](https://explorer.testnet.whitechain.io/tx/0x8c7dfc4c484dabbb196aea0fa75e8b6dbc214f5d9af850c69200668d79e4eeb2) |
 | Settled USDT invoice (direct `pay`, 1 USDT, on the first version) | [`0x0b714b19…57c55065`](https://explorer.testnet.whitechain.io/tx/0x0b714b19f379aaa8677df1381f663006bf95eab8f6371d3ce25b835957c55065) |
 
 ## How it works
@@ -43,9 +44,11 @@ with its own relayer.
 from customer to merchant inside one transaction, so the contract never holds funds. There is no
 owner, pause or upgrade.
 
-- **Direct payment:** the customer approves the contract and calls `pay`.
+- **Direct payment:** the customer approves the contract and calls `pay`, with their own gas. The
+  merchant receives the whole amount.
 - **Gasless payment:** the customer signs an EIP-3009 authorization and a relayer submits it to
-  `payWithAuthorization`. The relayer earns the invoice's fee in USDT, out of the merchant's amount.
+  `payWithAuthorization`. The invoice's fee repays the relayer's gas in USDT, out of the merchant's
+  amount. A customer with a wallet can choose either way.
 - **Gasless create, cancel and refund:** the merchant signs and the relayer submits, so a merchant
   who logs in by email never needs WBT.
 - **Refunds:** in part or in full, and USDT goes back to the original payer.
@@ -54,6 +57,9 @@ owner, pause or upgrade.
 authorization and the submitter is paid a fee out of the amount. The recipient and the fee are inside
 the signed nonce, so a submitter can change neither. A user who connects their own wallet can pay
 the gas themselves instead and skip the fee.
+
+Settle adds no margin. A fee is the gas a relayed call uses, at the live gas price, converted to
+USDT with the explorer's WBT price. Creating, cancelling and refunding are relayed for free.
 
 ### Why `receiveWithAuthorization`
 
@@ -125,8 +131,10 @@ pnpm dev
 ## Current limitations
 
 - Testnet only. The contracts have not been audited.
-- The gasless paths are proven in fork tests and in the app against a fork, but have not run on the
-  live chain yet.
+- Gasless payment has run on the live chain. Gasless create, cancel, refund and transfer are
+  proven in fork tests and in the app against a fork.
+- An invoice keeps the fee estimated when it was created, so the relayer can be repaid a little
+  more or less than the gas it later spends.
 - The SDK, subscriptions and reminders are not built yet.
 - Encrypted customer details are stored on public Arkiv. This uses sample data on testnet and should
   move off Arkiv before real customers use it. See [`arkiv/why-arkiv.md`](arkiv/why-arkiv.md).
