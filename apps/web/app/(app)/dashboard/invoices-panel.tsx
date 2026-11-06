@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { zeroAddress } from "viem";
+import type { AgentSale } from "@/lib/agent-sale";
 import { formatDate, formatUsdt } from "@/lib/format";
 import { buildInvoicesCsv } from "@/lib/invoices-csv";
 import { logsClient } from "@/lib/logs-client";
@@ -13,11 +14,14 @@ import {
 } from "@/lib/invoice";
 import { customerContact, type InvoiceCustomer } from "@/lib/customer-invoices";
 import { payUrl } from "@/lib/pay-link";
+import { useAgentSales } from "@/lib/use-agent-sales";
 import { useMerchantCustomers } from "@/lib/use-merchant-customers";
 import { useMerchantInvoices } from "@/lib/use-merchant-invoices";
 import { useMerchantProfile } from "@/lib/use-merchant-profile";
 import { useMerchantPayments, type MerchantPayment } from "@/lib/use-merchant-payments";
 import { useSession } from "@/lib/use-session";
+
+import { AgentSales } from "./agent-sales";
 
 const FILTERS = ["All", "Open", "Paid", "Refunded", "Cancelled"] as const;
 type Filter = (typeof FILTERS)[number];
@@ -49,9 +53,11 @@ function plural(count: number) {
 function Summary({
   rows,
   payments,
+  agentSales,
 }: {
   rows: { invoice: Invoice; state: InvoiceState }[];
   payments?: Map<string, MerchantPayment>;
+  agentSales: AgentSale[];
 }) {
   const open = rows.filter(({ state }) => state.group === "Open");
   const overdue = open.filter(({ state }) => state.isOverdue);
@@ -61,6 +67,10 @@ function Summary({
     items.reduce((sum, { invoice }) => sum + read(invoice), 0n);
   // A relayed payment repays the relayer's gas out of the invoice. Nothing is owed afterwards.
   const relayed = paid.filter(({ invoice }) => payments?.get(String(invoice.id))?.gasless);
+  const sold = agentSales.reduce((sum, { amount }) => sum + BigInt(amount), 0n);
+  const soldFees = agentSales.reduce((sum, { networkFee }) => sum + BigInt(networkFee), 0n);
+  const collected = paid.length + agentSales.length;
+  const feePayments = relayed.length + agentSales.length;
 
   return (
     <section
@@ -69,19 +79,21 @@ function Summary({
     >
       <Stat
         label="Collected"
-        value={formatUsdt(total(paid, (invoice) => invoice.amount))}
-        detail={`USDT from ${paid.length} ${paid.length === 1 ? "payment" : "payments"}`}
+        value={formatUsdt(total(paid, (invoice) => invoice.amount) + sold)}
+        detail={`USDT from ${collected} ${collected === 1 ? "payment" : "payments"}`}
       />
       <Stat
         label="Network fees"
         value={
           payments
-            ? formatUsdt(total(relayed, (invoice) => payments.get(String(invoice.id))?.fee ?? 0n))
+            ? formatUsdt(
+                total(relayed, (invoice) => payments.get(String(invoice.id))?.fee ?? 0n) + soldFees,
+              )
             : "—"
         }
         detail={
           payments
-            ? `USDT on ${relayed.length} ${relayed.length === 1 ? "payment" : "payments"}`
+            ? `USDT on ${feePayments} ${feePayments === 1 ? "payment" : "payments"}`
             : "Loading…"
         }
       />
@@ -125,10 +137,12 @@ function ExportButton({
   invoices,
   now,
   customers,
+  agentSales,
 }: {
   invoices: Invoice[];
   now: bigint;
   customers: Map<string, InvoiceCustomer>;
+  agentSales: AgentSale[];
 }) {
   const { address } = useSession();
   const [exporting, setExporting] = useState(false);
@@ -139,7 +153,7 @@ function ExportButton({
     setExporting(true);
     setFailed(false);
     try {
-      const csv = await buildInvoicesCsv(logsClient, address, invoices, now, customers);
+      const csv = await buildInvoicesCsv(logsClient, address, invoices, now, customers, agentSales);
       const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
       const link = document.createElement("a");
       link.href = url;
@@ -310,6 +324,7 @@ function InvoiceList() {
   const session = useSession();
   const { address } = session;
   const merchant = useMerchantCustomers();
+  const agentSales = useAgentSales();
   const { orders } = useMerchantProfile(address);
   const { invoices, isLoading, isError, retry } = useMerchantInvoices(address);
   const payments = useMerchantPayments(
@@ -373,7 +388,7 @@ function InvoiceList() {
 
   return (
     <>
-      <Summary rows={rows} payments={payments} />
+      <Summary rows={rows} payments={payments} agentSales={agentSales} />
       {session.kind === "wallet" && !merchant.isUnlocked && <CustomerSignIn />}
       {merchant.error && (
         <p role="alert" className="text-[13px]/[18px] text-late">
@@ -405,7 +420,12 @@ function InvoiceList() {
                 onChange={(event) => setSearch(event.target.value)}
               />
             </label>
-            <ExportButton invoices={invoices} now={now} customers={merchant.customers} />
+            <ExportButton
+              invoices={invoices}
+              now={now}
+              customers={merchant.customers}
+              agentSales={agentSales}
+            />
           </div>
         </div>
         {visible.length === 0 ? (
@@ -464,5 +484,10 @@ function InvoiceList() {
 }
 
 export function InvoicesPanel() {
-  return <InvoiceList />;
+  return (
+    <>
+      <InvoiceList />
+      <AgentSales />
+    </>
+  );
 }

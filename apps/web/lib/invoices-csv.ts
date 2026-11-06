@@ -1,4 +1,5 @@
 import { formatUnits, zeroAddress, type Address, type Hash, type PublicClient } from "viem";
+import type { AgentSale } from "./agent-sale";
 import { registry, USDT_DECIMALS } from "./contracts";
 import { explorerTxUrl } from "./format";
 import { invoiceState, type Invoice } from "./invoice";
@@ -107,6 +108,7 @@ export async function buildInvoicesCsv(
   invoices: Invoice[],
   now: bigint,
   customers: Map<string, InvoiceCustomer>,
+  agentSales: AgentSale[] = [],
 ) {
   const events = await readMerchantEvents(client, merchant);
 
@@ -144,5 +146,36 @@ export async function buildInvoicesCsv(
     ];
   });
 
-  return [HEADERS, ...rows].map((row) => row.map(cell).join(",")).join("\r\n") + "\r\n";
+  // An agent's order has no invoice behind it, so its first column is empty.
+  const agentRows = [...agentSales].reverse().map((sale) => {
+    const soldAt = utc(new Date(sale.soldAt));
+    return [
+      "",
+      sale.merchantName,
+      "AI agent",
+      "",
+      sale.payer,
+      sale.description,
+      sale.receipt,
+      "Agent sale",
+      soldAt,
+      "",
+      soldAt,
+      "USDT",
+      usdt(BigInt(sale.amount)),
+      usdt(0n),
+      usdt(BigInt(sale.networkFee)),
+      usdt(BigInt(sale.received)),
+      sale.payer,
+      merchant,
+      sale.transaction,
+      explorerTxUrl(sale.transaction),
+      "",
+      "",
+    ];
+  });
+
+  return (
+    [HEADERS, ...rows, ...agentRows].map((row) => row.map(cell).join(",")).join("\r\n") + "\r\n"
+  );
 }
