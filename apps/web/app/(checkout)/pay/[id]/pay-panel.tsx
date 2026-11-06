@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { QRCodeSVG } from "qrcode.react";
 import { useState } from "react";
 import { zeroAddress, type Address, type Hash } from "viem";
@@ -91,6 +92,11 @@ function InvoiceSummary({ invoice }: { invoice: Invoice }) {
 }
 
 function PaidCard({ invoice }: { invoice: Invoice }) {
+  // A shop that sent the customer here can ask for a way back. Only a path on this site is
+  // accepted, so a pay link can't be used to send anyone somewhere else.
+  const requested = useSearchParams().get("return");
+  const returnPath = requested && /^\/(?!\/)[\w\-./?=&%]*$/.test(requested) ? requested : null;
+
   return (
     <div className="flex flex-col items-center gap-3 text-center" role="status">
       <svg width="52" height="52" viewBox="0 0 52 52" aria-hidden="true">
@@ -112,7 +118,15 @@ function PaidCard({ invoice }: { invoice: Invoice }) {
       {invoice.refunded > 0n && (
         <p className="text-refund">{formatUsdt(invoice.refunded)} USDT refunded.</p>
       )}
-      <Link href={`/pay/${invoice.id}/receipt`} className="btn btn-primary btn-wide">
+      {returnPath && (
+        <Link href={returnPath} className="btn btn-primary btn-wide">
+          Back to the shop
+        </Link>
+      )}
+      <Link
+        href={`/pay/${invoice.id}/receipt`}
+        className={`btn btn-wide ${returnPath ? "" : "btn-primary"}`}
+      >
         View receipt
       </Link>
       <Link href="/pay" className="text-[13px]/[18px] text-accent-text">

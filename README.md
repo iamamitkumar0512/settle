@@ -92,6 +92,19 @@ add its address: `0x0862eb825530db019ed13dbb1a1ef0c6567ba25e`.
 
 The query filters on the writer wallet, because anyone can create entities with the same schema name.
 
+## SDK and demo shop
+
+[`@settle/sdk`](packages/sdk) lets another app take USDT through Settle. Its server signs with the
+merchant's wallet and Settle's relayer submits, so there are no API keys and no gas.
+
+```ts
+const order = await settle.createInvoice({ amount: "3.00", dueAt, businessName, customer, memo });
+redirect(order.payUrl);
+```
+
+The demo shop at `/shop` is built only on the SDK. Its orders show in the Settle dashboard for the
+shop's wallet, because both read the same contract.
+
 ## PDF invoices on Swarm
 
 A merchant can attach a PDF to an invoice. The server encrypts it, stores it on Swarm, and records
@@ -107,7 +120,8 @@ contracts/
   src/IUSDT.sol              the USDT functions Settle uses
   test/                      fork tests against the real USDT
   script/                    deployment, Whitechain Sepolia only
-apps/web/                    Next.js dashboard, pay pages and API routes
+apps/web/                    Next.js dashboard, pay pages, API routes and the demo shop
+packages/sdk/                @settle/sdk, for taking payments from another app
 arkiv/                       Arkiv schema, feedback and track notes
 ```
 
@@ -135,7 +149,9 @@ pnpm dev
   proven in fork tests and in the app against a fork.
 - An invoice keeps the fee estimated when it was created, so the relayer can be repaid a little
   more or less than the gas it later spends.
-- The SDK, subscriptions and reminders are not built yet.
+- Subscriptions and reminders are not built yet.
+- The SDK needs a wallet whose key the merchant holds. A merchant who signed up by email can't use
+  it yet.
 - Encrypted customer details are stored on public Arkiv. This uses sample data on testnet and should
   move off Arkiv before real customers use it. See [`arkiv/why-arkiv.md`](arkiv/why-arkiv.md).
 - Arkiv records last about 182 days, and nothing renews them yet.
