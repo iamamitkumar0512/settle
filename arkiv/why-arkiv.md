@@ -32,3 +32,7 @@ For real customers, we'd move these fields off Arkiv.
 We hide what we can. Encrypted values are padded so their size doesn't reveal the length of a name,
 and the random salt stays inside the encrypted part, so nobody can test guessed emails against the
 hash on-chain.
+
+To let customers find their invoices, each record holds a keyed hash of the customer's email. Only
+our server can compute it, so nobody can test guessed emails against it. It does show when two
+invoices went to the same customer.

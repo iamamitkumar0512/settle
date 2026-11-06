@@ -6,7 +6,7 @@ customer details.
 
 ## Entities
 
-There is one entity type today, `settle_invoice_v1`, with one entity per invoice. It's defined in
+There is one entity type today, `settle_invoice_v2`, with one entity per invoice. It's defined in
 [`apps/web/lib/server/arkiv.ts`](../apps/web/lib/server/arkiv.ts).
 
 | Column | Type | Indexed | Public | Purpose |
@@ -15,6 +15,7 @@ There is one entity type today, `settle_invoice_v1`, with one entity per invoice
 | `invoice_id` | `u64` | Yes | Yes | The on-chain invoice id |
 | `merchant` | `addr` | Yes | Yes | The merchant wallet |
 | `due_at` | `u64` | Yes | Yes | Due date in unix seconds |
+| `customer_lookup` | `str` | Yes | Keyed hash | Finds a customer's invoices without storing a readable email |
 | `amount_usdt` | `u256` | No | Yes | Amount in USDT, 6 decimals |
 | `merchant_name` | `str` | No | Yes | Business name shown to customers, up to 128 bytes |
 | `public_details` | `bytes` | No | Yes | JSON: `{ memo }` |
@@ -28,6 +29,7 @@ There is one entity type today, `settle_invoice_v1`, with one entity per invoice
 | Does this invoice have a record? | `registry`, `invoice_id`, creator | Saving details |
 | Public details of one invoice | `registry`, `invoice_id`, creator | Pay page and receipt |
 | All of a merchant's invoices | `registry`, `merchant`, creator | Dashboard, invoice page, CSV |
+| Invoices sent to one customer | `registry`, `customer_lookup`, creator | Customer invoices page |
 
 `due_at` is indexed for overdue queries, but the app doesn't query it yet. Overdue status comes from
 the contract's due date.
@@ -56,7 +58,7 @@ its payment remain on Whitechain, and the app falls back to showing addresses.
 These sample records belong to a separate test deployment of the contract:
 
 - Registry: `0x0862eb825530db019ed13dbb1a1ef0c6567ba25e`
-- Entity key: `0x87827603be3120a073efaf7ba6b6d351ae203234d22ed0b9003ad904367087d5`
+- Entity key: `0x3a4d720cc8616aea6603a6b2c2c7c179f62c9e83a9c544f8cc3427f4c150189e`
 
 To list them:
 

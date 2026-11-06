@@ -2,9 +2,10 @@
 
 ## Do filters, edit rights and expiry fit what the app does?
 
-**Filters.** The app asks two questions: "what are this invoice's details?" and "what are this
-merchant's invoices?" So `registry`, `invoice_id` and `merchant` are indexed. Binary columns can't be
-filtered, and we never need to filter inside them. `due_at` is indexed but not used yet.
+**Filters.** The app asks three questions: "what are this invoice's details?", "what are this
+merchant's invoices?" and "which invoices were sent to this customer?" So `registry`, `invoice_id`,
+`merchant` and `customer_lookup` are indexed. Encrypted columns can't be filtered, which is why the
+customer lookup is a separate keyed hash. `due_at` is indexed but not used yet.
 
 **Who can edit.** Nobody. An invoice is a document, and changing it after a customer has seen it would
 break trust, so records are `readonly`. The first version of our plan stored status in Arkiv and
@@ -24,6 +25,7 @@ and that would be needed before real use.
 |---|---|
 | Queries by invoice | The pay page and receipt show the business name and description instead of an address |
 | Queries by merchant | The dashboard, invoice page and CSV show customers and descriptions |
+| Queries by customer | A customer logs in by email and sees invoices to pay and past invoices |
 | Encrypted `bytes` column | Customers show as "Hidden" until the merchant signs in |
 | Creator filter | A stranger's fake entity with our schema name never appears on a pay page |
 | `readonly` | No visible control, but the details a customer saw can't change later |
