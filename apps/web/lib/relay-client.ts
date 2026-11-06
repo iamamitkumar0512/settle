@@ -42,7 +42,6 @@ const MESSAGES: Record<string, string> = {
 
 const UNAVAILABLE = new Set([
   "relayer_not_configured",
-  "withdraw_not_configured",
   "relayer_low_balance",
   "relayer_budget_spent",
   "gas_price_too_high",

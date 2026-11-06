@@ -13,8 +13,6 @@ import { relay, RelayError, WITHDRAW_FEE } from "@/lib/server/relayer";
 // this needs no login and no daily cap: the signature is the authorization.
 export async function POST(request: Request) {
   return relayRoute(request, async (body) => {
-    if (!TRANSFER_ADDRESS) throw new RelayError(503, "withdraw_not_configured");
-
     const from = addressField(body.from);
     const to = addressField(body.to);
     const amount = uintField(body.amount);

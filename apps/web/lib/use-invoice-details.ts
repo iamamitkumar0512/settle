@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 type PublicDetails = {
   merchantName: string;
   memo: string;
+  hasPdf: boolean;
 };
 
 // The business name and memo from Arkiv. Null when the invoice has no saved details.

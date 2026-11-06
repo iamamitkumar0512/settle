@@ -13,6 +13,7 @@ import { getGasPrice } from "viem/actions";
 import { REGISTRY_ADDRESS } from "@/lib/contracts";
 import type { CustomerInvoice, InvoiceCustomer } from "@/lib/customer-invoices";
 import { customerLookup, normalizeEmail } from "./customer-lookup";
+import { FILE_ENCRYPTION } from "./invoice-file";
 import {
   decryptPrivateDetails,
   encryptPrivateDetails,
@@ -36,6 +37,25 @@ export const InvoiceRecord = defineSchema("settle_invoice_v2", {
   private_details: bytes(),
   private_media_type: str(),
 });
+
+// A PDF attached to an invoice. The file itself is on Swarm, encrypted; this is where to find it.
+// A separate entity, because invoice records are readonly and a PDF can be attached later.
+export const InvoiceFile = defineSchema("settle_invoice_file_v1", {
+  registry: addr().indexed(),
+  invoice_id: u64().indexed(),
+  merchant: addr().indexed(),
+  swarm_reference: str(),
+  media_type: str(),
+  size_bytes: u64(),
+  encryption: str(),
+});
+
+export type InvoiceFileInput = {
+  id: bigint;
+  merchant: Address;
+  reference: string;
+  size: number;
+};
 
 export type InvoiceRecordInput = PrivateDetails & {
   id: bigint;
@@ -99,6 +119,23 @@ export async function readPublicDetails(id: bigint) {
   return {
     merchantName: row.merchant_name.value,
     memo: memoFrom(row.public_details.value),
+  };
+}
+
+export async function readInvoiceFile(id: bigint) {
+  const page = await arkivReader()
+    .select({ swarm_reference: true, media_type: true, size_bytes: true })
+    .from(InvoiceFile)
+    .where(and(eq("registry", addr(REGISTRY_ADDRESS)), eq("invoice_id", u64(id))))
+    .createdBy(writerAccount().address)
+    .limit(1)
+    .fetch();
+  const row = page.entities[0];
+  if (!row) return null;
+  return {
+    reference: row.swarm_reference.value,
+    mediaType: row.media_type.value,
+    size: Number(row.size_bytes.value),
   };
 }
 
@@ -211,15 +248,8 @@ function oneAtATime<T>(write: () => Promise<T>) {
   return next;
 }
 
-async function createRecord(input: InvoiceRecordInput) {
-  const { id, merchant, amount, dueAt, merchantName, memo } = input;
-  const { customerName, customerEmail, salt } = input;
-  const { envelope, mediaType } = await encryptPrivateDetails(id, {
-    customerName,
-    customerEmail,
-    salt,
-  });
-
+// The wallet client and the fixed gas settings every write uses.
+async function writer() {
   const account = writerAccount();
   const reader = arkivReader();
   const [gasPrice, nonce] = await Promise.all([
@@ -229,8 +259,22 @@ async function createRecord(input: InvoiceRecordInput) {
   if (WRITE_GAS * gasPrice > MAX_WRITE_COST_WEI) {
     throw new Error("Arkiv gas price is above the write budget");
   }
+  return {
+    wallet: createWalletClient({ ...connection(), account }),
+    transaction: { gas: WRITE_GAS, gasPrice, nonce },
+  };
+}
 
-  const wallet = createWalletClient({ ...connection(), account });
+async function createRecord(input: InvoiceRecordInput) {
+  const { id, merchant, amount, dueAt, merchantName, memo } = input;
+  const { customerName, customerEmail, salt } = input;
+  const { envelope, mediaType } = await encryptPrivateDetails(id, {
+    customerName,
+    customerEmail,
+    salt,
+  });
+
+  const { wallet, transaction } = await writer();
   // Never retried here: resending after an uncertain result could write the record twice.
   return wallet.createEntity(
     InvoiceRecord,
@@ -247,10 +291,33 @@ async function createRecord(input: InvoiceRecordInput) {
       private_media_type: str(mediaType),
     },
     { expiration: ExpirationTime.max(), flags: { readonly: true } },
-    { gas: WRITE_GAS, gasPrice, nonce },
+    transaction,
   );
 }
 
 export function writeInvoiceRecord(input: InvoiceRecordInput) {
   return oneAtATime(() => createRecord(input));
+}
+
+async function createFileRecord({ id, merchant, reference, size }: InvoiceFileInput) {
+  const { wallet, transaction } = await writer();
+  // Never retried here, for the same reason as above.
+  return wallet.createEntity(
+    InvoiceFile,
+    {
+      registry: addr(REGISTRY_ADDRESS),
+      invoice_id: u64(id),
+      merchant: addr(merchant),
+      swarm_reference: str(reference),
+      media_type: str("application/pdf"),
+      size_bytes: u64(BigInt(size)),
+      encryption: str(FILE_ENCRYPTION),
+    },
+    { expiration: ExpirationTime.max(), flags: { readonly: true } },
+    transaction,
+  );
+}
+
+export function writeInvoiceFile(input: InvoiceFileInput) {
+  return oneAtATime(() => createFileRecord(input));
 }

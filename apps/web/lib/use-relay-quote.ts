@@ -6,11 +6,11 @@ type RelayQuote = {
   available: boolean;
   relayFee: string;
   minInvoice: string;
-  canWithdraw: boolean;
   withdrawFee: string;
+  canAttachPdf: boolean;
 };
 
-// What the relayer charges, and whether it can send transactions at all.
+// What the relayer charges, and what the server can do right now.
 export function useRelayQuote() {
   const { data, isPending } = useQuery({
     queryKey: ["relay-quote"],
@@ -22,7 +22,7 @@ export function useRelayQuote() {
     available: data?.available ?? false,
     relayFee: data ? BigInt(data.relayFee) : 0n,
     minInvoice: data ? BigInt(data.minInvoice) : 0n,
-    canWithdraw: data?.canWithdraw ?? false,
     withdrawFee: data ? BigInt(data.withdrawFee) : 0n,
+    canAttachPdf: data?.canAttachPdf ?? false,
   };
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useLoginWithEmail } from "@privy-io/react-auth";
-import Image from "next/image";
 import { useState, type FormEvent } from "react";
 import { useConnect, useConnectors } from "wagmi";
 import { useSession } from "@/lib/use-session";
@@ -119,7 +118,10 @@ function WalletLogin() {
           onClick={() => connectWith(connector)}
         >
           {connector.icon && (
-            <Image src={connector.icon} alt="" width={20} height={20} unoptimized />
+            // The wallet supplies its own icon, often a data URI with stray whitespace, so it is
+            // shown as given instead of going through Next's image checks.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={connector.icon.trim()} alt="" width={20} height={20} />
           )}
           {connector.id === "injected" ? "Browser wallet" : connector.name}
         </button>

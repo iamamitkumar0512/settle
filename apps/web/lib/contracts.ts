@@ -8,10 +8,9 @@ export const REGISTRY_ADDRESS = (process.env.NEXT_PUBLIC_REGISTRY_ADDRESS ??
   "0x4c6F09e112CaF53f2922b382DafD8Aa95826628F") as Address;
 export const USDT_ADDRESS: Address =
   "0xcedfB56113143d55b2358b8CFbB0dEB5Ad2f55a7";
-// GaslessTransfer. Unset until it is deployed; sending without gas is off while it is.
-export const TRANSFER_ADDRESS = (process.env.NEXT_PUBLIC_TRANSFER_ADDRESS || undefined) as
-  | Address
-  | undefined;
+// GaslessTransfer, with the same kind of override for testing.
+export const TRANSFER_ADDRESS = (process.env.NEXT_PUBLIC_TRANSFER_ADDRESS ||
+  "0x947a28093aD9Eb1fC5B747383e947CDAc03c0700") as Address;
 
 // Event scans start here; nothing older can belong to this deployment.
 export const REGISTRY_DEPLOY_BLOCK = 12333707n;

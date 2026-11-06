@@ -3,9 +3,9 @@
 import { QRCodeSVG } from "qrcode.react";
 import { useState, type FormEvent } from "react";
 import { formatUnits, isAddress, type Address, type Hash } from "viem";
-import { useWriteContract, usePublicClient } from "wagmi";
+import { usePublicClient, useWriteContract } from "wagmi";
 import { whitechainSepolia } from "@/lib/chains";
-import { TRANSFER_ADDRESS, usdtAbi, USDT_ADDRESS, USDT_DECIMALS } from "@/lib/contracts";
+import { usdtAbi, USDT_ADDRESS, USDT_DECIMALS } from "@/lib/contracts";
 import { explorerTxUrl, formatUsdt } from "@/lib/format";
 import { newSalt, parseUsdtAmount } from "@/lib/invoice";
 import { postJson, splitSignature } from "@/lib/relay-client";
@@ -47,7 +47,7 @@ function Withdraw({ address, balance }: { address: Address; balance: bigint }) {
 
   const isWallet = session.kind === "wallet";
   // A wallet can always pay its own gas. An email account can't, so it needs the relayer.
-  const direct = isWallet && (paysOwnGas || !quote.canWithdraw);
+  const direct = isWallet && (paysOwnGas || !quote.available);
   const fee = direct ? 0n : quote.withdrawFee;
   const amount = parseUsdtAmount(amountText);
   const busy = action.busy || directStage !== "idle";
@@ -76,9 +76,9 @@ function Withdraw({ address, balance }: { address: Address; balance: bigint }) {
     }
   }
 
-  async function sendGasless(contract: Address, recipient: Address, value: bigint) {
+  async function sendGasless(recipient: Address, value: bigint) {
     const request = { from: address, to: recipient, amount: value, fee, salt: newSalt() };
-    const typed = withdrawAuthorization(contract, request);
+    const typed = withdrawAuthorization(request);
     const data = await action.run(typed, (signature) =>
       postJson("/api/relay/withdraw", {
         ...request,
@@ -102,10 +102,7 @@ function Withdraw({ address, balance }: { address: Address; balance: bigint }) {
     if (amount <= fee) return setError(`Enter more than the ${formatUsdt(fee)} USDT fee.`);
     setError(undefined);
 
-    const hash =
-      direct || !TRANSFER_ADDRESS
-        ? await sendDirect(to, amount)
-        : await sendGasless(TRANSFER_ADDRESS, to, amount);
+    const hash = direct ? await sendDirect(to, amount) : await sendGasless(to, amount);
     if (hash) {
       setSent(hash);
       setAmountText("");
@@ -113,7 +110,7 @@ function Withdraw({ address, balance }: { address: Address; balance: bigint }) {
   }
 
   if (quote.isPending) return <p className="text-muted">Loading…</p>;
-  if (!isWallet && !quote.canWithdraw) {
+  if (!isWallet && !quote.available) {
     return (
       <p role="alert" className="text-late">
         Settle can&apos;t send USDT right now. Your balance is safe. Try again later.
@@ -162,7 +159,7 @@ function Withdraw({ address, balance }: { address: Address; balance: bigint }) {
           </button>
         </span>
       </label>
-      {isWallet && quote.canWithdraw && (
+      {isWallet && quote.available && (
         <label className="flex items-center gap-2.5 text-[13px]/[18px]">
           <input
             type="checkbox"

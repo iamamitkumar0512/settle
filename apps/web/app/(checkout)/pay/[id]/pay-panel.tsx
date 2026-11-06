@@ -6,6 +6,8 @@ import { useState } from "react";
 import { zeroAddress, type Address, type Hash } from "viem";
 import { usePublicClient, useReadContract, useWriteContract } from "wagmi";
 import { AccountMenu } from "@/components/account-menu";
+import { FinishSetup } from "@/components/finish-setup";
+import { InvoicePdf } from "@/components/invoice-pdf";
 import { LoginCard } from "@/components/login-card";
 import { Message } from "@/components/message";
 import { SwitchNetwork } from "@/components/switch-network";
@@ -67,6 +69,7 @@ function InvoiceSummary({ invoice }: { invoice: Invoice }) {
         <div className="figure text-lg text-muted">USDT</div>
       </div>
       {details?.memo && <p className="border-t border-line pt-4">{details.memo}</p>}
+      <InvoicePdf id={invoice.id} className="border-t border-line pt-4" />
       <div className="flex flex-wrap gap-8 border-t border-line pt-4">
         {details && (
           <div>
@@ -435,6 +438,8 @@ export function PayPanel() {
         <p className="text-center text-muted">Loading…</p>
       ) : session.status === "signedOut" ? (
         <LoginCard title="Log in to pay" />
+      ) : session.status === "needsWallet" ? (
+        <FinishSetup />
       ) : !session.isOnWhitechain ? (
         <SwitchNetwork />
       ) : (

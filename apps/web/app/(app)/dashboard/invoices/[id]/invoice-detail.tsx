@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import type { Hash } from "viem";
+import { InvoicePdf } from "@/components/invoice-pdf";
 import { explorerTxUrl, formatDate, formatDateTime, formatUsdt, shortAddress, shortHash } from "@/lib/format";
 import { InvoiceStatus, invoiceState, type Invoice } from "@/lib/invoice";
 import { useInvoice } from "@/lib/use-invoice";
@@ -165,6 +166,11 @@ function Detail({ invoice, onChanged }: { invoice: Invoice; onChanged: () => Pro
               </>
             )}
           </p>
+          <InvoicePdf
+            id={invoice.id}
+            canAttach={invoice.status === InvoiceStatus.Open}
+            className="mb-5"
+          />
           <div className="grid grid-cols-1 gap-5 border-t border-line pt-5 md:grid-cols-3">
             <Stat label="Invoiced" value={formatUsdt(invoice.amount)} />
             <Stat

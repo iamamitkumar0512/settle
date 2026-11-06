@@ -3,7 +3,8 @@ import "server-only";
 const windows = new Map<string, { count: number; resetAt: number }>();
 
 export const MINUTE = 60_000;
-export const DAY = 24 * 60 * MINUTE;
+export const HOUR = 60 * MINUTE;
+export const DAY = 24 * HOUR;
 
 // Counts are kept in memory, so they reset on restart and aren't shared between server instances.
 export function allow(key: string, limit: number, windowMs: number) {

@@ -25,6 +25,7 @@ with its own relayer.
 |---|---|
 | Chain ID | `1874` |
 | InvoiceRegistry (verified) | [`0x4c6F09e112CaF53f2922b382DafD8Aa95826628F`](https://explorer.testnet.whitechain.io/address/0x4c6F09e112CaF53f2922b382DafD8Aa95826628F) |
+| GaslessTransfer (verified) | [`0x947a28093aD9Eb1fC5B747383e947CDAc03c0700`](https://explorer.testnet.whitechain.io/address/0x947a28093aD9Eb1fC5B747383e947CDAc03c0700) |
 | First version, replaced | [`0x7ac2BbccfF3156ee4f36E41b5091e2b7E02E21bA`](https://explorer.testnet.whitechain.io/address/0x7ac2BbccfF3156ee4f36E41b5091e2b7E02E21bA) |
 | Test USDT | [`0xcedfB56113143d55b2358b8CFbB0dEB5Ad2f55a7`](https://explorer.testnet.whitechain.io/address/0xcedfB56113143d55b2358b8CFbB0dEB5Ad2f55a7) |
 
@@ -32,7 +33,8 @@ with its own relayer.
 
 | Action | Transaction |
 |---|---|
-| Contract deployment | [`0x02b6cfbd…15388320`](https://explorer.testnet.whitechain.io/tx/0x02b6cfbd5715928eecfd5bd5b8283c9f9c8811cd8803ba840a2ceba615388320) |
+| InvoiceRegistry deployment | [`0x02b6cfbd…15388320`](https://explorer.testnet.whitechain.io/tx/0x02b6cfbd5715928eecfd5bd5b8283c9f9c8811cd8803ba840a2ceba615388320) |
+| GaslessTransfer deployment | [`0x86e52fbb…a6d2d718`](https://explorer.testnet.whitechain.io/tx/0x86e52fbb3689982c5fbfa2c112e5eefd560304f1ddc3fe6aa045a520a6d2d718) |
 | Settled USDT invoice (direct `pay`, 1 USDT, on the first version) | [`0x0b714b19…57c55065`](https://explorer.testnet.whitechain.io/tx/0x0b714b19f379aaa8677df1381f663006bf95eab8f6371d3ce25b835957c55065) |
 
 ## How it works
@@ -43,9 +45,15 @@ owner, pause or upgrade.
 
 - **Direct payment:** the customer approves the contract and calls `pay`.
 - **Gasless payment:** the customer signs an EIP-3009 authorization and a relayer submits it to
-  `payWithAuthorization`.
-- **Refunds:** the merchant calls `refund`, in part or in full, and USDT goes back to the original
-  payer.
+  `payWithAuthorization`. The relayer earns the invoice's fee in USDT, out of the merchant's amount.
+- **Gasless create, cancel and refund:** the merchant signs and the relayer submits, so a merchant
+  who logs in by email never needs WBT.
+- **Refunds:** in part or in full, and USDT goes back to the original payer.
+
+`GaslessTransfer` sends an account's USDT to any address without gas. The sender signs one EIP-3009
+authorization and the submitter is paid a fee out of the amount. The recipient and the fee are inside
+the signed nonce, so a submitter can change neither. A user who connects their own wallet can pay
+the gas themselves instead and skip the fee.
 
 ### Why `receiveWithAuthorization`
 
@@ -78,14 +86,21 @@ add its address: `0x0862eb825530db019ed13dbb1a1ef0c6567ba25e`.
 
 The query filters on the writer wallet, because anyone can create entities with the same schema name.
 
+## PDF invoices on Swarm
+
+A merchant can attach a PDF to an invoice. The server encrypts it, stores it on Swarm, and records
+the Swarm reference in a second Arkiv entity. Only the merchant, the customer the invoice was sent
+to, and whoever paid it can open the PDF. Details are in [`arkiv/swarm.md`](arkiv/swarm.md).
+
 ## Repo layout
 
 ```
 contracts/
   src/InvoiceRegistry.sol    invoices, payments, refunds
+  src/GaslessTransfer.sol    send USDT without gas, for a fee in USDT
   src/IUSDT.sol              the USDT functions Settle uses
   test/                      fork tests against the real USDT
-  script/Deploy.s.sol        deployment, Whitechain Sepolia only
+  script/                    deployment, Whitechain Sepolia only
 apps/web/                    Next.js dashboard, pay pages and API routes
 arkiv/                       Arkiv schema, feedback and track notes
 ```
@@ -110,12 +125,14 @@ pnpm dev
 ## Current limitations
 
 - Testnet only. The contracts have not been audited.
-- The relayer, email login, SDK and subscriptions are not built yet, so the gasless path is proven in
-  fork tests but has not run on the live chain. Customers pay from a wallet for now.
+- The gasless paths are proven in fork tests and in the app against a fork, but have not run on the
+  live chain yet.
+- The SDK, subscriptions and reminders are not built yet.
+- A customer who pays from a wallet can open an invoice's PDF only after paying.
 - Encrypted customer details are stored on public Arkiv. This uses sample data on testnet and should
   move off Arkiv before real customers use it. See [`arkiv/why-arkiv.md`](arkiv/why-arkiv.md).
 - Arkiv records last about 182 days, and nothing renews them yet.
-- Refunds depend on the merchant's USDT balance and approval.
+- Refunds depend on the merchant's USDT balance.
 - USDT sent directly to the contract by mistake cannot be recovered, because there is no admin.
 - A merchant is a single wallet, and a lost key cannot be replaced.
 - USDT is the only supported token.

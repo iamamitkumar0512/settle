@@ -1,6 +1,6 @@
 import { encodeAbiParameters, keccak256, type Address, type Hex } from "viem";
 import { whitechainSepolia } from "./chains";
-import { REGISTRY_ADDRESS, USDT_ADDRESS } from "./contracts";
+import { REGISTRY_ADDRESS, TRANSFER_ADDRESS, USDT_ADDRESS } from "./contracts";
 import type { Invoice } from "./invoice";
 
 // How long a signed request stays valid for the relayer to submit.
@@ -128,14 +128,14 @@ export type TransferRequest = {
 
 // What an account signs to send its USDT without gas. Only the transfer contract can use it, and
 // only for this recipient and this fee.
-export function withdrawAuthorization(contract: Address, request: TransferRequest) {
+export function withdrawAuthorization(request: TransferRequest) {
   return {
     domain: USDT_DOMAIN,
     types: RECEIVE_TYPES,
     primaryType: "ReceiveWithAuthorization",
     message: {
       from: request.from,
-      to: contract,
+      to: TRANSFER_ADDRESS,
       value: request.amount,
       validAfter: 0n,
       validBefore: expiry(),

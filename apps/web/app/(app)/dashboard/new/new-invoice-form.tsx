@@ -1,8 +1,10 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import type { Hash, Hex } from "viem";
+import { InvoicePdf } from "@/components/invoice-pdf";
 import { explorerTxUrl, formatDate, formatUsdt } from "@/lib/format";
 import {
   dueDateToUnix,
@@ -13,6 +15,7 @@ import {
   parseUsdtAmount,
   type InvoiceDetails,
 } from "@/lib/invoice";
+import { attachInvoicePdf, pdfErrorMessage, pdfProblem } from "@/lib/invoice-pdf";
 import { postJson } from "@/lib/relay-client";
 import { saveInvoiceDetails } from "@/lib/save-invoice-details";
 import { createInvoiceRequest } from "@/lib/typed-data";
@@ -49,12 +52,16 @@ function CreatedPanel({
   id,
   hash,
   saveState,
+  pdfUploading,
+  pdfError,
   onRetrySave,
   onReset,
 }: {
   id: bigint;
   hash: Hash;
   saveState: SaveState;
+  pdfUploading: boolean;
+  pdfError?: string;
   onRetrySave: () => void;
   onReset: () => void;
 }) {
@@ -95,6 +102,18 @@ function CreatedPanel({
           {saveState === "saving" ? "Saving invoice details…" : "Invoice details saved."}
         </p>
       )}
+      {pdfUploading ? (
+        <p className="text-[13px]/[18px] text-muted">Encrypting and uploading your PDF to Swarm…</p>
+      ) : (
+        <>
+          {pdfError && (
+            <p role="alert" className="text-[13px]/[18px] text-late">
+              The PDF wasn&apos;t attached. {pdfError} You can choose it again below.
+            </p>
+          )}
+          <InvoicePdf id={id} canAttach />
+        </>
+      )}
       <a
         href={explorerTxUrl(hash)}
         target="_blank"
@@ -127,6 +146,10 @@ export function NewInvoiceForm() {
   const [emailError, setEmailError] = useState<string>();
   const [created, setCreated] = useState<CreatedInvoice>();
   const [saveState, setSaveState] = useState<SaveState>("saved");
+  const queryClient = useQueryClient();
+  const [pdf, setPdf] = useState<File>();
+  const [pdfUploading, setPdfUploading] = useState(false);
+  const [pdfError, setPdfError] = useState<string>();
 
   const { relayFee } = quote;
   const minimum = quote.minInvoice > relayFee ? quote.minInvoice : relayFee + 1n;
@@ -148,6 +171,13 @@ export function NewInvoiceForm() {
     setForm(EMPTY_FORM);
     action.clearError();
     setCreated(undefined);
+    setPdf(undefined);
+    setPdfError(undefined);
+  }
+
+  function choosePdf(file: File | undefined) {
+    setPdfError(file && pdfProblem(file));
+    setPdf(file);
   }
 
   async function onSubmit(event: FormEvent) {
@@ -171,6 +201,7 @@ export function NewInvoiceForm() {
       emailValid ? undefined : "Enter your customer's email, so they can find this invoice.",
     );
     if (!amountValid || dueAt === null || !form.merchantName.trim() || !emailValid) return;
+    if (pdf && pdfProblem(pdf)) return;
 
     const { merchantName, customerName, customerEmail, memo } = form;
     const details = { merchantName, customerName, customerEmail, memo };
@@ -197,6 +228,15 @@ export function NewInvoiceForm() {
     const invoice = { id: BigInt(data.id as string), hash: data.txHash as Hash, details, salt };
     setCreated(invoice);
     setSaveState(data.saved ? "saved" : "failed");
+
+    // The PDF goes up after the invoice exists, because its record points at the invoice id.
+    if (pdf && session.credentials && data.saved) {
+      setPdfUploading(true);
+      const attached = await attachInvoicePdf(invoice.id, pdf, session.credentials);
+      setPdfError(attached.ok ? undefined : pdfErrorMessage(attached.error));
+      await queryClient.invalidateQueries({ queryKey: ["invoice-details", String(invoice.id)] });
+      setPdfUploading(false);
+    }
   }
 
   return (
@@ -206,6 +246,8 @@ export function NewInvoiceForm() {
             id={created.id}
             hash={created.hash}
             saveState={saveState}
+            pdfUploading={pdfUploading}
+            pdfError={pdfError}
             onRetrySave={() => saveDetails(created)}
             onReset={reset}
           />
@@ -309,6 +351,27 @@ export function NewInvoiceForm() {
                   )}
                 </label>
               </div>
+              {quote.canAttachPdf && session.credentials && (
+                <label className="field">
+                  PDF invoice (optional)
+                  <input
+                    className="input"
+                    type="file"
+                    accept="application/pdf"
+                    aria-invalid={pdfError ? true : undefined}
+                    onChange={(event) => choosePdf(event.target.files?.[0])}
+                  />
+                  {pdfError ? (
+                    <span role="alert" className="text-[13px]/[18px] font-normal text-late">
+                      {pdfError}
+                    </span>
+                  ) : (
+                    <span className="text-[13px]/[18px] font-normal text-muted">
+                      Up to 2 MB. Stored encrypted on Swarm. Only you and your customer can open it.
+                    </span>
+                  )}
+                </label>
+              )}
             </fieldset>
             {quote.available ? (
               <div className="well flex items-baseline justify-between gap-4 text-[13px]/[18px]">

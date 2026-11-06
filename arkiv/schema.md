@@ -6,8 +6,10 @@ customer details.
 
 ## Entities
 
-There is one entity type today, `settle_invoice_v2`, with one entity per invoice. It's defined in
+There are two entity types, both defined in
 [`apps/web/lib/server/arkiv.ts`](../apps/web/lib/server/arkiv.ts).
+
+### `settle_invoice_v2`: one per invoice
 
 | Column | Type | Indexed | Public | Purpose |
 |---|---|---|---|---|
@@ -22,6 +24,22 @@ There is one entity type today, `settle_invoice_v2`, with one entity per invoice
 | `private_details` | `bytes` | No | Encrypted | `{ invoiceId, customerName, customerEmail, salt }` |
 | `private_media_type` | `str` | No | Yes | Format of the encrypted data |
 
+### `settle_invoice_file_v1`: one per attached PDF
+
+The PDF itself is on Swarm, encrypted. This entity says where. It is separate from the invoice
+record because invoice records are readonly and a PDF can be attached after the invoice exists.
+See [`swarm.md`](swarm.md).
+
+| Column | Type | Indexed | Public | Purpose |
+|---|---|---|---|---|
+| `registry` | `addr` | Yes | Yes | Which `InvoiceRegistry` deployment the invoice belongs to |
+| `invoice_id` | `u64` | Yes | Yes | The on-chain invoice id |
+| `merchant` | `addr` | Yes | Yes | The merchant wallet |
+| `swarm_reference` | `str` | No | Yes | Swarm reference of the encrypted file |
+| `media_type` | `str` | No | Yes | What the file is once decrypted: `application/pdf` |
+| `size_bytes` | `u64` | No | Yes | Size of the PDF before encryption |
+| `encryption` | `str` | No | Yes | How the bytes on Swarm are laid out |
+
 ## Fields we query
 
 | Query | Filters | Used by |
@@ -30,6 +48,7 @@ There is one entity type today, `settle_invoice_v2`, with one entity per invoice
 | Public details of one invoice | `registry`, `invoice_id`, creator | Pay page and receipt |
 | All of a merchant's invoices | `registry`, `merchant`, creator | Dashboard, invoice page, CSV |
 | Invoices sent to one customer | `registry`, `customer_lookup`, creator | Customer invoices page |
+| The PDF attached to one invoice | `registry`, `invoice_id`, creator | Pay page, invoice page |
 
 `due_at` is indexed for overdue queries, but the app doesn't query it yet. Overdue status comes from
 the contract's due date.

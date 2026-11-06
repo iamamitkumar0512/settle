@@ -39,3 +39,13 @@ Notes from building Settle on Arkiv, written as they happen.
 - **Repro:** call `client.getGasPrice()` on `createPublicClient` from `@arkiv-network/sdk` in a
   TypeScript project.
 - **Workaround:** `getGasPrice(client)` from `viem/actions`.
+
+## 5. `arkiv-encryption` is sized for entities, not files
+
+- **Expected:** to encrypt an invoice PDF with the same package we use for entity fields.
+- **Happened:** the package declares `MAX_PLAINTEXT_BYTES = 100000`, described as a policy for one
+  small entity. A PDF can be larger. We did not test what happens above the limit.
+- **Workaround:** files use AES-256-GCM from `node:crypto` with the same `iv || ciphertext || tag`
+  layout and a separate derived key, and go to Swarm instead of an entity.
+- **Would help:** a documented pattern for encrypting a file that lives on Swarm with its reference
+  on Arkiv, since the Swarm bonus leads straight to this.

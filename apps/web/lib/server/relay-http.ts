@@ -9,7 +9,7 @@ function fail(status: number, error: string) {
   return Response.json({ error }, { status });
 }
 
-function clientIp(request: Request) {
+export function clientIp(request: Request) {
   return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
 }
 

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Suspense, type ReactNode } from "react";
 import { useSession } from "@/lib/use-session";
 import { AccountMenu } from "./account-menu";
+import { FinishSetup } from "./finish-setup";
 import { LoginCard } from "./login-card";
 import { Logo } from "./logo";
 import { SwitchNetwork } from "./switch-network";
@@ -52,6 +53,13 @@ function Gate({ children }: { children: ReactNode }) {
     return (
       <section className="card m-auto w-full max-w-[420px] p-6">
         <LoginCard title="Log in to Settle" />
+      </section>
+    );
+  }
+  if (session.status === "needsWallet") {
+    return (
+      <section className="card m-auto w-full max-w-[420px] p-6">
+        <FinishSetup />
       </section>
     );
   }

@@ -1,5 +1,4 @@
 import { connection } from "next/server";
-import { TRANSFER_ADDRESS } from "@/lib/contracts";
 import {
   MIN_INVOICE,
   RELAY_FEE,
@@ -7,8 +6,10 @@ import {
   relayerAccount,
   WITHDRAW_FEE,
 } from "@/lib/server/relayer";
+import { swarmConfigured } from "@/lib/server/swarm";
 
-// What the relayer charges: the fee stored on a new invoice, and the fee for sending USDT.
+// What the server can do right now, and what the relayer charges: the fee stored on a new
+// invoice, and the fee for sending USDT.
 export async function GET() {
   // Read the relayer's settings per request, not once at build time.
   await connection();
@@ -23,7 +24,7 @@ export async function GET() {
     relayer,
     relayFee: String(RELAY_FEE),
     minInvoice: String(MIN_INVOICE),
-    canWithdraw: relayer !== null && Boolean(TRANSFER_ADDRESS),
     withdrawFee: String(WITHDRAW_FEE),
+    canAttachPdf: swarmConfigured(),
   });
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCreateWallet,
   useIdentityToken,
   usePrivy,
   useSignTypedData as usePrivySignTypedData,
@@ -66,7 +67,8 @@ function jsonSafe(typed: SignableTypedData) {
 // silently) or with a browser wallet (they sign in their wallet). Either way nothing costs gas.
 export function useSession() {
   const privy = usePrivy();
-  const { wallets } = useWallets();
+  const { wallets, ready: walletsReady } = useWallets();
+  const { createWallet } = useCreateWallet();
   const { identityToken } = useIdentityToken();
   const { signTypedData: signWithPrivy } = usePrivySignTypedData();
   const connection = useConnection();
@@ -90,9 +92,16 @@ export function useSession() {
     queryFn: () => readSession(connected as Address),
   });
 
-  let status: "loading" | "signedOut" | "ready";
+  // Privy creates the wallet when someone logs in. A login that was restored from before that
+  // setting was on has none, and would otherwise wait forever.
+  const hasPrivyWallet = privy.user?.linkedAccounts.some(
+    (account) => account.type === "wallet" && account.walletClientType === "privy",
+  );
+
+  let status: "loading" | "signedOut" | "needsWallet" | "ready";
   if (!privy.ready || connection.status === "reconnecting") status = "loading";
-  else if (isEmail) status = embedded ? "ready" : "loading";
+  else if (isEmail && embedded) status = "ready";
+  else if (isEmail) status = walletsReady && !hasPrivyWallet ? "needsWallet" : "loading";
   else status = connected ? "ready" : "signedOut";
 
   let credentials: Credentials | null = null;
@@ -146,6 +155,7 @@ export function useSession() {
     credentials,
     signTypedData,
     signIn,
+    createWallet: () => createWallet(),
     logout,
   };
 }

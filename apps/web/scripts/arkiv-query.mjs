@@ -1,6 +1,8 @@
-// Lists Settle's public invoice records on Arkiv. Needs only a free access key:
+// Lists Settle's public invoice records on Arkiv, and the PDFs attached to them. Needs only a
+// free access key:
 //   ARKIV_ACCESS_KEY=<key> node apps/web/scripts/arkiv-query.mjs [registry address]
-// Encrypted customer fields are returned as stored, so this script can't read them.
+// Encrypted customer fields are returned as stored, so this script can't read them. A PDF's
+// Swarm reference is public, but the bytes behind it are encrypted too.
 import { createPublicClient } from "@arkiv-network/sdk";
 import { rabdi } from "@arkiv-network/sdk/chains";
 import { and, eq } from "@arkiv-network/sdk/query";
@@ -21,6 +23,16 @@ const InvoiceRecord = defineSchema("settle_invoice_v2", {
   public_details: bytes(),
   private_details: bytes(),
   private_media_type: str(),
+});
+
+const InvoiceFile = defineSchema("settle_invoice_file_v1", {
+  registry: addr().indexed(),
+  invoice_id: u64().indexed(),
+  merchant: addr().indexed(),
+  swarm_reference: str(),
+  media_type: str(),
+  size_bytes: u64(),
+  encryption: str(),
 });
 
 const accessKey = process.env.ARKIV_ACCESS_KEY;
@@ -69,4 +81,30 @@ const rows = page.entities.map((row) => ({
   expiresAtBlock: String(row.$expiresAt),
 }));
 
-console.log(JSON.stringify({ registry, writer: WRITER, count: rows.length, rows }, null, 2));
+const filePage = await client
+  .select({
+    $key: true,
+    invoice_id: true,
+    swarm_reference: true,
+    media_type: true,
+    size_bytes: true,
+    encryption: true,
+  })
+  .from(InvoiceFile)
+  .where(and(eq("registry", addr(registry))))
+  .createdBy(WRITER)
+  .limit(20)
+  .fetch();
+
+const files = filePage.entities.map((row) => ({
+  entityKey: row.$key,
+  invoiceId: String(row.invoice_id.value),
+  swarmReference: row.swarm_reference.value,
+  mediaType: row.media_type.value,
+  sizeBytes: String(row.size_bytes.value),
+  encryption: row.encryption.value,
+}));
+
+console.log(
+  JSON.stringify({ registry, writer: WRITER, count: rows.length, rows, files }, null, 2),
+);
