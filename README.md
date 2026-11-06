@@ -3,8 +3,9 @@
 Settle lets a business get paid in USDT on Whitechain with invoices, pay links, refunds and
 subscriptions, and lets the customer pay without holding WBT for gas.
 
-> **Status:** early build for ETHGlobal Mumbai 2026. The invoice contract is live and verified on
-> Whitechain Sepolia, and a real USDT invoice has settled. The relayer, web app, SDK and
+> **Status:** build in progress for ETHGlobal Mumbai 2026. The invoice contract is live and verified on
+> Whitechain Sepolia, and a real USDT invoice has settled. The merchant dashboard, pay page, receipts,
+> refunds, CSV export and Arkiv records are built. The gasless relayer, email login, SDK and
 > subscriptions are still in progress. See [Current limitations](#current-limitations).
 
 ## Why onchain stablecoin settlement on Whitechain
@@ -53,6 +54,29 @@ USDT contract: the funds would move, but the invoice would never be marked paid.
 of the signature. The authorization's nonce is derived from the invoice and payer, so a signature
 can't be replayed or used on another invoice.
 
+## Invoice details on Arkiv
+
+The contract holds the money and status. Arkiv holds each invoice's business name and description,
+plus encrypted customer details that only the signed-in merchant can read. Details are in
+[`arkiv/schema.md`](arkiv/schema.md).
+
+- **Network:** Arkiv Rabdi testnet, chain `7794095`
+- **Wallet that writes entities:** `0x7d404608B53998044fDDf5d07f6da8092d155278`
+
+### Run a query
+
+You need a free access key from [hub.arkiv.network](https://hub.arkiv.network/access-keys):
+
+```bash
+pnpm install
+ARKIV_ACCESS_KEY=<your key> node apps/web/scripts/arkiv-query.mjs
+```
+
+This lists invoice records for the live contract. To see the sample records from the test deployment,
+add its address: `0x0862eb825530db019ed13dbb1a1ef0c6567ba25e`.
+
+The query filters on the writer wallet, because anyone can create entities with the same schema name.
+
 ## Repo layout
 
 ```
@@ -61,6 +85,8 @@ contracts/
   src/IUSDT.sol              the USDT functions Settle uses
   test/                      fork tests against the real USDT
   script/Deploy.s.sol        deployment, Whitechain Sepolia only
+apps/web/                    Next.js dashboard, pay pages and API routes
+arkiv/                       Arkiv schema, feedback and track notes
 ```
 
 ## Running locally
@@ -73,11 +99,21 @@ cd contracts
 forge test
 ```
 
+To run the app, copy `apps/web/.env.example` to `apps/web/.env`, fill in its values, then:
+
+```bash
+pnpm install
+pnpm dev
+```
+
 ## Current limitations
 
 - Testnet only. The contracts have not been audited.
-- The relayer, web app, SDK and subscriptions are not built yet, so the gasless path is proven in
-  fork tests but has not run on the live chain.
+- The relayer, email login, SDK and subscriptions are not built yet, so the gasless path is proven in
+  fork tests but has not run on the live chain. Customers pay from a wallet for now.
+- Encrypted customer details are stored on public Arkiv. This uses sample data on testnet and should
+  move off Arkiv before real customers use it. See [`arkiv/why-arkiv.md`](arkiv/why-arkiv.md).
+- Arkiv records last about 182 days, and nothing renews them yet.
 - Refunds depend on the merchant's USDT balance and approval.
 - USDT sent directly to the contract by mistake cannot be recovered, because there is no admin.
 - A merchant is a single wallet, and a lost key cannot be replaced.
@@ -85,7 +121,7 @@ forge test
 
 ## Tracks
 
-Whitechain Operate and Whitechain Scale.
+Whitechain Operate, Whitechain Scale, and Arkiv Build on Arkiv (from scratch).
 
 ## License
 
