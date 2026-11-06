@@ -1,6 +1,6 @@
 import { InvoiceStatus } from "@/lib/invoice";
 import { authenticate } from "@/lib/server/auth";
-import { emailConfigured } from "@/lib/server/email";
+import { describeEmailError, emailConfigured, EmailError } from "@/lib/server/email";
 import { DAY } from "@/lib/server/rate-limit";
 import { requestOrigin } from "@/lib/server/relay-http";
 import { readInvoice, RelayError } from "@/lib/server/relayer";
@@ -44,6 +44,13 @@ export async function POST(request: Request, context: RouteContext<"/api/invoice
     return Response.json({ sent: true });
   } catch (error) {
     if (error instanceof RelayError) return fail(error.status, error.code);
+    if (error instanceof EmailError) {
+      console.error(describeEmailError(error));
+      // The other two ways still work, so the page says which one failed and why.
+      return error.fault === "test_sender"
+        ? fail(503, "reminders_test_mode")
+        : fail(502, "failed");
+    }
     // The name only: messages can contain a keyed RPC URL or an email address.
     console.error("Sending a reminder failed:", error instanceof Error ? error.name : "unknown");
     return fail(502, "failed");

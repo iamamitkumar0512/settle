@@ -1,5 +1,5 @@
 import { isAuthorizedCron } from "@/lib/server/cron";
-import { emailConfigured } from "@/lib/server/email";
+import { describeEmailError, emailConfigured, EmailError } from "@/lib/server/email";
 import { DAY } from "@/lib/server/rate-limit";
 import { readOpenInvoices } from "@/lib/server/invoices";
 import { requestOrigin } from "@/lib/server/relay-http";
@@ -38,6 +38,7 @@ export async function GET(request: Request) {
     const skipped: string[] = [];
     const failed: string[] = [];
     const origin = requestOrigin(request);
+    let explained = false;
     for (const { invoice, kind } of due) {
       const id = String(invoice.id);
       try {
@@ -48,8 +49,13 @@ export async function GET(request: Request) {
         } else {
           skipped.push(id);
         }
-      } catch {
+      } catch (error) {
         failed.push(id);
+        // Said once: every reminder in a run fails for the same reason.
+        if (error instanceof EmailError && !explained) {
+          console.error(describeEmailError(error));
+          explained = true;
+        }
       }
     }
     return Response.json({ open: open.length, sent, skipped, failed });

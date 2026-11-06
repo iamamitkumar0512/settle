@@ -20,6 +20,8 @@ export type ReminderContact = {
 const SEND_ERRORS: Record<string, string> = {
   reminder_already_sent: "A reminder already went out today. You can send another tomorrow.",
   no_customer_email: "This invoice has no email address to send to.",
+  reminders_test_mode:
+    "Email from Settle is in test mode and can't reach this address yet. Use one of the other ways.",
   InvoiceNotOpen: "This invoice was already paid or cancelled.",
   log_in_again: "Your session ended. Log in again.",
   network: "We couldn't reach Settle. Check your connection.",

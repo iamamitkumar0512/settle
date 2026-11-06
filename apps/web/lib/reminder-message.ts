@@ -34,7 +34,7 @@ export function reminderMessage(reminder: {
     reminder.kind === "overdue"
       ? `It was due on ${due} and hasn't been paid yet.`
       : `It is due on ${due}.`;
-  const how = "You can pay with your email or a wallet, and you need no gas.";
+  const how = "You can pay with just your email. There is nothing to install and no extra fee.";
   const text = [greeting, "", invoiced, status, "", `Pay it here: ${reminder.payUrl}`, "", how].join(
     "\n",
   );
