@@ -46,8 +46,3 @@ export async function verifiedAccount(identityToken: string): Promise<VerifiedAc
     return null;
   }
 }
-
-export async function verifiedEmail(identityToken: string) {
-  const account = await verifiedAccount(identityToken);
-  return account?.emails[0] ?? null;
-}

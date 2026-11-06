@@ -84,7 +84,7 @@ function revertReason(error: unknown) {
   return reverted.reason ?? reverted.data?.errorName;
 }
 
-export type RelayCall = {
+type RelayCall = {
   address: Address;
   abi: Abi;
   functionName: string;

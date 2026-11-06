@@ -14,12 +14,12 @@ export type InvoiceEvent = {
   time: Date;
 };
 
-export type RefundRecord = InvoiceEvent & {
+type RefundRecord = InvoiceEvent & {
   amount: bigint;
 };
 
 // The fee repaid the relayer's gas for sending the payment. It is 0 when the customer paid directly.
-export type PaymentRecord = InvoiceEvent & {
+type PaymentRecord = InvoiceEvent & {
   fee: bigint;
 };
 

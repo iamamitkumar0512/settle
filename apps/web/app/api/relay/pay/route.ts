@@ -4,6 +4,8 @@ import { addressField, checkWindow, relayRoute, uintField, vrsFields } from "@/l
 import { coversOpenInvoice, relayFees } from "@/lib/server/gas-fee";
 import { MIN_INVOICE, readInvoice, relay, RelayError } from "@/lib/server/relayer";
 
+export const maxDuration = 60;
+
 // One relay per invoice at a time, so a double click can't send two transactions.
 const inFlight = new Set<string>();
 

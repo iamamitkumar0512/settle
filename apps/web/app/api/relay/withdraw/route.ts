@@ -10,6 +10,8 @@ import {
 import { coversNewRequest, relayFees } from "@/lib/server/gas-fee";
 import { relay, RelayError } from "@/lib/server/relayer";
 
+export const maxDuration = 60;
+
 // Sends an account's USDT to any address. The fee repays the gas and comes out of the amount, so
 // this needs no login and no daily cap: the signature is the authorization.
 export async function POST(request: Request) {

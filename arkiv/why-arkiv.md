@@ -19,10 +19,13 @@ Postgres would still win on some things: private data, instant updates, and quer
 
 - **Payment status and money.** The contract is the source of truth, so we don't copy status to
   Arkiv, where a second copy could go stale. It's also why records can be `readonly`.
-- **Readable customer details.** Customer names and emails are never stored in plain text. Arkiv's
+- **Readable customer details.** Customer names, emails and wallet addresses are never stored in
+  plain text. Arkiv's
   guidance is that private information should stay off Arkiv. We chose to store these encrypted
   anyway, using the official `arkiv-encryption` package, so that Settle needs no second database.
 - **The encryption key.** It stays on our server. Losing it means those fields can't be read again.
+- **Files.** A PDF invoice is too large for an entity, so it goes to Swarm, encrypted. Arkiv
+  holds only where it is. See [`swarm.md`](swarm.md).
 
 That choice has limits. Encryption hides the content, but not the writer, the timing or the fact that
 an invoice exists. If our key ever leaked, the encrypted data would be readable for good, because
@@ -33,6 +36,6 @@ We hide what we can. Encrypted values are padded so their size doesn't reveal th
 and the random salt stays inside the encrypted part, so nobody can test guessed emails against the
 hash on-chain.
 
-To let customers find their invoices, each record holds a keyed hash of the customer's email. Only
-our server can compute it, so nobody can test guessed emails against it. It does show when two
+To let customers find their invoices, each record holds a keyed hash of the customer's email or
+wallet address. Only our server can compute it, so nobody can test guesses against it. It does show when two
 invoices went to the same customer.

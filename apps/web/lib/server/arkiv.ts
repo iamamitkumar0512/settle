@@ -26,7 +26,7 @@ const WRITE_GAS = 1_800_000n;
 const MAX_WRITE_COST_WEI = 2_000_000_000_000_000n;
 const PAGE_SIZE = 100;
 
-export const InvoiceRecord = defineSchema("settle_invoice_v2", {
+const InvoiceRecord = defineSchema("settle_invoice_v2", {
   registry: addr().indexed(),
   invoice_id: u64().indexed(),
   merchant: addr().indexed(),
@@ -41,7 +41,7 @@ export const InvoiceRecord = defineSchema("settle_invoice_v2", {
 
 // A PDF attached to an invoice. The file itself is on Swarm, encrypted; this is where to find it.
 // A separate entity, because invoice records are readonly and a PDF can be attached later.
-export const InvoiceFile = defineSchema("settle_invoice_file_v1", {
+const InvoiceFile = defineSchema("settle_invoice_file_v1", {
   registry: addr().indexed(),
   invoice_id: u64().indexed(),
   merchant: addr().indexed(),
@@ -51,14 +51,14 @@ export const InvoiceFile = defineSchema("settle_invoice_file_v1", {
   encryption: str(),
 });
 
-export type InvoiceFileInput = {
+type InvoiceFileInput = {
   id: bigint;
   merchant: Address;
   reference: string;
   size: number;
 };
 
-export type InvoiceRecordInput = PrivateDetails & {
+type InvoiceRecordInput = PrivateDetails & {
   id: bigint;
   merchant: Address;
   amount: bigint;
@@ -202,7 +202,7 @@ export async function readMerchantCustomers(merchant: Address) {
 }
 
 // The email or the wallet address an invoice was sent to.
-export type BilledTo = { email: string } | { wallet: Address };
+type BilledTo = { email: string } | { wallet: Address };
 
 export async function readCustomerInvoices(customer: BilledTo) {
   const invoices: CustomerInvoice[] = [];

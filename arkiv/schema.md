@@ -78,6 +78,17 @@ its payment remain on Whitechain, and the app falls back to showing addresses.
 
 ## Example
 
+The live contract, `0x4c6F09e112CaF53f2922b382DafD8Aa95826628F`, has two invoices. Their records:
+
+- Invoice 1: `0x7239a8fe129ad413de36bc4d55e03f72af812bd959ba8089e7e46ff5439ea685`
+- Invoice 2: `0x47294a658a8121971796fe77d11263595d71d08fd9663b867c432d1adcfe48f5`
+
+To list them:
+
+```bash
+ARKIV_ACCESS_KEY=<your key> node apps/web/scripts/arkiv-query.mjs
+```
+
 These sample records belong to a separate test deployment of the contract:
 
 - Registry: `0x0862eb825530db019ed13dbb1a1ef0c6567ba25e`

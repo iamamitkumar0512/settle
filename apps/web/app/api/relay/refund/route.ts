@@ -2,6 +2,8 @@ import { registry } from "@/lib/contracts";
 import { checkWindow, relayRoute, uintField, vrsFields } from "@/lib/server/relay-http";
 import { readInvoice, relay, spendFreeRelay } from "@/lib/server/relayer";
 
+export const maxDuration = 60;
+
 const REFUNDS_PER_DAY = 20;
 
 // Submits a refund the merchant signed. The contract rejects it unless the merchant did.

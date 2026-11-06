@@ -7,7 +7,7 @@ import { shopSettle } from "./settle";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
-export type CheckoutState = { error?: string };
+type CheckoutState = { error?: string };
 
 const MESSAGES: Record<string, string> = {
   invalid_customer: "Enter a valid email or wallet address.",

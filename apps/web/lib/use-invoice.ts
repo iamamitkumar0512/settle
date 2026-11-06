@@ -12,7 +12,6 @@ function parseInvoiceId(value: unknown) {
   return typeof value === "string" && /^[1-9]\d{0,18}$/.test(value) ? BigInt(value) : null;
 }
 
-// Loads the invoice named by the [id] route segment.
 export function useInvoice() {
   const params = useParams();
   const id = parseInvoiceId(params.id);

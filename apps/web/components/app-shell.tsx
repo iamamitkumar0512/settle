@@ -73,7 +73,6 @@ function Gate({ children }: { children: ReactNode }) {
   return children;
 }
 
-// The logged-in app: one header and nav for getting paid, paying and the account.
 export function AppShell({ children }: { children: ReactNode }) {
   return (
     <>

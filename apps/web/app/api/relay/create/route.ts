@@ -20,6 +20,8 @@ import {
   spendFreeRelay,
 } from "@/lib/server/relayer";
 
+export const maxDuration = 60;
+
 const CREATES_PER_DAY = 50;
 // A merchant who has never been paid can only keep this many invoices open.
 const OPEN_ALLOWANCE = 5;

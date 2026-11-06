@@ -11,6 +11,8 @@ import { clientIp } from "@/lib/server/relay-http";
 import { readInvoice, RelayError } from "@/lib/server/relayer";
 import { downloadFromSwarm, swarmConfigured, uploadToSwarm } from "@/lib/server/swarm";
 
+export const maxDuration = 60;
+
 const UPLOADS_PER_HOUR = 20;
 const DOWNLOADS_PER_HOUR = 120;
 const PDF_HEADER = "%PDF-";

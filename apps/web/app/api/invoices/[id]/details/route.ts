@@ -10,6 +10,8 @@ import {
 import { parseInvoiceDetails } from "@/lib/server/invoice-details";
 import { chainClient } from "@/lib/server/relayer";
 
+export const maxDuration = 60;
+
 function fail(status: number, error: string) {
   return Response.json({ error }, { status });
 }

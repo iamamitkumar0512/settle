@@ -6,14 +6,14 @@ import type { Invoice } from "./invoice";
 // How long a signed request stays valid for the relayer to submit.
 const VALID_SECONDS = 30 * 60;
 
-export const USDT_DOMAIN = {
+const USDT_DOMAIN = {
   name: "Tether USD",
   version: "1",
   chainId: whitechainSepolia.id,
   verifyingContract: USDT_ADDRESS,
 } as const;
 
-export const REGISTRY_DOMAIN = {
+const REGISTRY_DOMAIN = {
   name: "Settle InvoiceRegistry",
   version: "2",
   chainId: whitechainSepolia.id,
@@ -118,7 +118,7 @@ export function refundAuthorization(invoice: Invoice, amount: bigint) {
   } as const;
 }
 
-export type TransferRequest = {
+type TransferRequest = {
   from: Address;
   to: Address;
   amount: bigint;
@@ -154,7 +154,6 @@ export type CreateRequest = {
   deadline: bigint;
 };
 
-// What a merchant signs to create an invoice without gas.
 export function createInvoiceRequest(fields: Omit<CreateRequest, "deadline">) {
   return {
     domain: REGISTRY_DOMAIN,
@@ -164,7 +163,6 @@ export function createInvoiceRequest(fields: Omit<CreateRequest, "deadline">) {
   } as const;
 }
 
-// What a merchant signs to cancel an open invoice without gas.
 export function cancelInvoiceRequest(id: bigint) {
   return {
     domain: REGISTRY_DOMAIN,

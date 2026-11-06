@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "license": "MIT",
-  "description": "Stablecoin invoicing on Whitechain: invoices, pay links, gasless payments, refunds and subscriptions in USDT.",
+  "description": "Stablecoin invoicing on Whitechain: invoices, pay links, gasless payments and refunds in USDT.",
   "engines": {
     "node": ">=20"
   },
@@ -12,12 +12,6 @@
     "dev": "pnpm --filter @settle/web dev",
     "build": "pnpm --filter @settle/web build",
     "test:contracts": "cd contracts && forge test -vv"
-  },
-  "devDependencies": {
-    "@types/node": "^26.6.6",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.2",
-    "viem": "^2.21.54"
   },
   "pnpm": {
     "overrides": {

@@ -3,7 +3,6 @@ import type { Credentials } from "./use-session";
 
 export const MAX_PDF_BYTES = 2 * 1024 * 1024;
 
-// Returns what is wrong with a chosen file, or nothing when it can be uploaded.
 export function pdfProblem(file: File) {
   if (file.type !== "application/pdf") return "Choose a PDF file.";
   if (file.size === 0 || file.size > MAX_PDF_BYTES) return "The PDF must be 2 MB or smaller.";

@@ -2,9 +2,10 @@ import { registry } from "@/lib/contracts";
 import { relayRoute, signatureField, uintField } from "@/lib/server/relay-http";
 import { readInvoice, relay, spendFreeRelay } from "@/lib/server/relayer";
 
+export const maxDuration = 60;
+
 const CANCELS_PER_DAY = 20;
 
-// Submits a cancellation the merchant signed.
 export async function POST(request: Request) {
   return relayRoute(request, async (body) => {
     const id = uintField(body.invoiceId);

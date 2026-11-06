@@ -1,12 +1,16 @@
 # Settle
 
-Settle lets a business get paid in USDT on Whitechain with invoices, pay links, refunds and
-subscriptions, and lets the customer pay without holding WBT for gas.
+Settle lets a business get paid in USDT on Whitechain with invoices, pay links and refunds, and
+lets the customer pay without holding WBT for gas.
 
-> **Status:** build in progress for ETHGlobal Mumbai 2026. The invoice contract is live and verified on
-> Whitechain Sepolia, and a real USDT invoice has settled. The merchant dashboard, pay page, receipts,
-> refunds, CSV export and Arkiv records are built. The gasless relayer, email login, SDK and
-> subscriptions are still in progress. See [Current limitations](#current-limitations).
+<!-- Amit: add the two links, and remove this comment. -->
+**Live app:** [ADD DEPLOYED URL] · **Demo video:** [ADD VIDEO LINK]
+
+> **Status:** built for ETHGlobal Mumbai 2026. Both contracts are live and verified on Whitechain
+> Sepolia, and invoices have been created, paid and refunded there without the customer or the
+> merchant holding gas. Built: email or wallet login, the merchant dashboard, pay page, receipts,
+> refunds, CSV export, the relayer, Arkiv records, PDF invoices on Swarm, an SDK and a demo shop.
+> Not built: subscriptions and reminders. See [Current limitations](#current-limitations).
 
 ## Why onchain stablecoin settlement on Whitechain
 
@@ -16,8 +20,8 @@ public record both sides can check. A regular payment rail can't give the custom
 it can't accept a single signature as a payment that someone else submits on the customer's behalf.
 
 USDT on Whitechain supports EIP-3009, so a customer can sign one message and a relayer pays the
-gas. Whitechain has no paymaster or account abstraction service, which is why Settle uses EIP-3009
-with its own relayer.
+gas. We found no hosted paymaster or bundler for Whitechain, which is why Settle uses EIP-3009 with
+its own relayer.
 
 ## Live on Whitechain Sepolia
 
@@ -35,8 +39,28 @@ with its own relayer.
 |---|---|
 | InvoiceRegistry deployment | [`0x02b6cfbd…15388320`](https://explorer.testnet.whitechain.io/tx/0x02b6cfbd5715928eecfd5bd5b8283c9f9c8811cd8803ba840a2ceba615388320) |
 | GaslessTransfer deployment | [`0x86e52fbb…a6d2d718`](https://explorer.testnet.whitechain.io/tx/0x86e52fbb3689982c5fbfa2c112e5eefd560304f1ddc3fe6aa045a520a6d2d718) |
+| Invoice created without gas (relayed `createFor`) | [`0x9cfc6f6d…e3c416cc`](https://explorer.testnet.whitechain.io/tx/0x9cfc6f6d54b3dbfdc06ffea1b91f6e7639f8c3df856e2c1828d33e15e3c416cc) |
 | Gasless USDT payment (relayed `payWithAuthorization`, 1 USDT) | [`0x8c7dfc4c…79e4eeb2`](https://explorer.testnet.whitechain.io/tx/0x8c7dfc4c484dabbb196aea0fa75e8b6dbc214f5d9af850c69200668d79e4eeb2) |
+| Refund without gas (relayed `refundWithAuthorization`, 1 USDT) | [`0x51207a48…cac2e890`](https://explorer.testnet.whitechain.io/tx/0x51207a48fa1c1b107655432da9af654e68d09b5b6758a4a255ddfcf6cac2e890) |
 | Settled USDT invoice (direct `pay`, 1 USDT, on the first version) | [`0x0b714b19…57c55065`](https://explorer.testnet.whitechain.io/tx/0x0b714b19f379aaa8677df1381f663006bf95eab8f6371d3ce25b835957c55065) |
+
+The payer in the gasless payment, `0x0d99…6aB0`, holds 0 WBT. All three relayed transactions were
+sent by the relayer, `0x21dc…836C`.
+
+## Architecture
+
+```
+ Merchant or customer                  Settle app (Next.js)
+ ┌──────────────────────┐   signs    ┌───────────────────────┐   sends    ┌─────────────────────┐
+ │ email login (Privy   │ ─────────▶ │ relay API + relayer   │ ─────────▶ │ Whitechain Sepolia  │
+ │ wallet), or a        │            │ wallet                │            │  InvoiceRegistry    │
+ │ browser wallet       │            │                       │            │  GaslessTransfer    │
+ └──────────────────────┘            │ invoice details ──────┼──▶ Arkiv   │  USDT               │
+                                     │ encrypted PDFs ───────┼──▶ Swarm   └─────────────────────┘
+ Another app's server ──@settle/sdk─▶│                       │                       ▲
+                                     └───────────────────────┘                       │
+        browsers and the SDK read invoices straight from the contract ───────────────┘
+```
 
 ## How it works
 
@@ -69,10 +93,32 @@ USDT contract: the funds would move, but the invoice would never be marked paid.
 of the signature. The authorization's nonce is derived from the invoice and payer, so a signature
 can't be replayed or used on another invoice.
 
+## The relayer
+
+**Who pays the gas?** The relayer's wallet pays it in WBT. A relayed payment repays that gas in
+USDT out of the invoice, and a relayed transfer repays it out of the amount sent. The fee is the
+gas the call uses, at the live gas price, converted with the explorer's WBT price. Creating,
+cancelling and refunding are relayed for free.
+
+**Where does its WBT come from?** We fund the wallet from the faucet. `/api/relay/health` shows its
+balance, and it stops relaying below 0.005 WBT.
+
+**What stops someone draining it?**
+
+- Every relayed call carries a signature from the wallet whose money or invoice it touches. There
+  are no API keys to steal.
+- Each call is simulated first, so a bad or reused signature fails before any gas is spent.
+- A payment is only relayed if the invoice's fee covers at least half the current gas estimate,
+  and invoices under 1 USDT are refused.
+- A merchant who has never been paid can keep 5 unpaid invoices. Free actions are capped per
+  merchant per day (50 creates, 20 refunds, 20 cancels) and at 500 a day in total.
+- 30 requests a minute per address, and nothing is sent when gas is above 50 gwei.
+
 ## Invoice details on Arkiv
 
 The contract holds the money and status. Arkiv holds each invoice's business name and description,
-plus encrypted customer details that only the signed-in merchant can read. Details are in
+plus encrypted customer details that only the merchant can read. A customer finds their invoices
+by the email or wallet address they were sent to. Details are in
 [`arkiv/schema.md`](arkiv/schema.md).
 
 - **Network:** Arkiv Rabdi testnet, chain `7794095`
@@ -87,8 +133,8 @@ pnpm install
 ARKIV_ACCESS_KEY=<your key> node apps/web/scripts/arkiv-query.mjs
 ```
 
-This lists invoice records for the live contract. To see the sample records from the test deployment,
-add its address: `0x0862eb825530db019ed13dbb1a1ef0c6567ba25e`.
+This lists the records of the two invoices on the live contract. To see sample records from a test
+deployment, add its address: `0x0862eb825530db019ed13dbb1a1ef0c6567ba25e`.
 
 The query filters on the writer wallet, because anyone can create entities with the same schema name.
 
@@ -142,6 +188,8 @@ pnpm install
 pnpm dev
 ```
 
+To deploy it, see [`DEPLOY.md`](DEPLOY.md).
+
 ## Current limitations
 
 - Testnet only. The contracts have not been audited.
@@ -150,6 +198,10 @@ pnpm dev
 - An invoice keeps the fee estimated when it was created, so the relayer can be repaid a little
   more or less than the gas it later spends.
 - Subscriptions and reminders are not built yet.
+- The relayer is one wallet with one send queue, and rate limits are counted in memory. Both
+  assume a single running copy of the app.
+- Email login has been used on the live chain less than wallet login. A wallet customer sees one
+  signature prompt; an email customer sees none.
 - The SDK needs a wallet whose key the merchant holds. A merchant who signed up by email can't use
   it yet.
 - Encrypted customer details are stored on public Arkiv. This uses sample data on testnet and should

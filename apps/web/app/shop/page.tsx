@@ -1,5 +1,7 @@
 import { CheckoutForm } from "./checkout-form";
 
+export const maxDuration = 60;
+
 const INTEGRATION = `import { Settle } from "@settle/sdk";
 
 const settle = new Settle({ baseUrl, account });

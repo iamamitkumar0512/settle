@@ -2,6 +2,8 @@ import type { CustomerInvoice } from "@/lib/customer-invoices";
 import { readCustomerInvoices } from "@/lib/server/arkiv";
 import { authenticate } from "@/lib/server/auth";
 
+export const maxDuration = 60;
+
 function fail(status: number, error: string) {
   return Response.json({ error }, { status });
 }

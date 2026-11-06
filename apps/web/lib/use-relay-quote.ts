@@ -10,7 +10,6 @@ type RelayQuote = {
   canAttachPdf: boolean;
 };
 
-// What the relayer charges, and what the server can do right now.
 export function useRelayQuote() {
   const { data, isPending } = useQuery({
     queryKey: ["relay-quote"],
