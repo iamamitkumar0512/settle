@@ -31,8 +31,11 @@ Use the same values as your local `apps/web/.env`.
 | `SWARM_BEE_URL`, `SWARM_BATCH_ID` | Optional | PDF invoices. The upload field is hidden without both. |
 | `SHOP_MERCHANT_PK` | Optional | The demo shop's wallet. `/shop` can't take orders without it. |
 
+| `CRON_SECRET` | Recommended | Protects the job that collects subscription payments. Vercel Cron sends it by itself. |
+
 Leave these unset. They point the app at test contracts:
-`NEXT_PUBLIC_REGISTRY_ADDRESS`, `NEXT_PUBLIC_TRANSFER_ADDRESS`, `NEXT_PUBLIC_LOGS_RPC_URL`.
+`NEXT_PUBLIC_REGISTRY_ADDRESS`, `NEXT_PUBLIC_TRANSFER_ADDRESS`,
+`NEXT_PUBLIC_SUBSCRIPTIONS_ADDRESS`, `NEXT_PUBLIC_LOGS_RPC_URL`.
 
 Optional tuning, with defaults: `MIN_INVOICE_USDT` (1), `RELAYER_MIN_WBT` (0.005),
 `RELAYER_MAX_FEE_GWEI` (50), `RELAYER_FREE_PER_DAY` (500), and `RELAY_FEE_USDT` and
@@ -55,6 +58,9 @@ Optional tuning, with defaults: `MIN_INVOICE_USDT` (1), `RELAYER_MIN_WBT` (0.005
   at once, two can pick the same nonce and one request fails. The user can retry. Limits also
   reset when a copy restarts.
 - **Time limits.** Routes that send a transaction or write to Arkiv allow 60 seconds.
+- **Subscription payments.** `apps/web/vercel.json` runs `/api/cron/charge` once a day at 06:00
+  UTC, which is as often as Vercel's free plan allows. A plan with a shorter period is collected
+  late unless something else calls that route, or `/api/relay/charge` for one subscription.
 - **Uploads.** PDFs are limited to 2 MB, under Vercel's 4.5 MB request limit.
 - **Pay links.** A link copied from one domain doesn't open on another, but its key is the same
   everywhere as long as `ARKIV_DATA_KEY` is.

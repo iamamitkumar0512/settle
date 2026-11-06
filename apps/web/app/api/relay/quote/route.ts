@@ -14,13 +14,14 @@ export async function GET() {
   } catch (error) {
     if (!(error instanceof RelayError)) throw error;
   }
-  const { payFee, withdrawFee } = await relayFees();
+  const { payFee, withdrawFee, chargeFee } = await relayFees();
   return Response.json({
     available: relayer !== null,
     relayer,
     relayFee: String(payFee),
     minInvoice: String(MIN_INVOICE),
     withdrawFee: String(withdrawFee),
+    chargeFee: String(chargeFee),
     canAttachPdf: swarmConfigured(),
   });
 }

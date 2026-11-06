@@ -10,7 +10,8 @@ lets the customer pay without holding WBT for gas.
 > Sepolia, and invoices have been created, paid and refunded there without the customer or the
 > merchant holding gas. Built: email or wallet login, the merchant dashboard, pay page, receipts,
 > refunds, CSV export, the relayer, Arkiv records, PDF invoices on Swarm, an SDK and a demo shop.
-> Not built: subscriptions and reminders. See [Current limitations](#current-limitations).
+> Subscriptions have a contract and a relay API, but no screens yet. Reminders are not built. See
+> [Current limitations](#current-limitations).
 
 ## Why onchain stablecoin settlement on Whitechain
 
@@ -30,6 +31,7 @@ its own relayer.
 | Chain ID | `1874` |
 | InvoiceRegistry (verified) | [`0x4c6F09e112CaF53f2922b382DafD8Aa95826628F`](https://explorer.testnet.whitechain.io/address/0x4c6F09e112CaF53f2922b382DafD8Aa95826628F) |
 | GaslessTransfer (verified) | [`0x947a28093aD9Eb1fC5B747383e947CDAc03c0700`](https://explorer.testnet.whitechain.io/address/0x947a28093aD9Eb1fC5B747383e947CDAc03c0700) |
+| Subscriptions (verified) | [`0x9dcBde22A2aD70249f188d649236b788DDBd4C61`](https://explorer.testnet.whitechain.io/address/0x9dcBde22A2aD70249f188d649236b788DDBd4C61) |
 | First version, replaced | [`0x7ac2BbccfF3156ee4f36E41b5091e2b7E02E21bA`](https://explorer.testnet.whitechain.io/address/0x7ac2BbccfF3156ee4f36E41b5091e2b7E02E21bA) |
 | Test USDT | [`0xcedfB56113143d55b2358b8CFbB0dEB5Ad2f55a7`](https://explorer.testnet.whitechain.io/address/0xcedfB56113143d55b2358b8CFbB0dEB5Ad2f55a7) |
 
@@ -39,6 +41,7 @@ its own relayer.
 |---|---|
 | InvoiceRegistry deployment | [`0x02b6cfbd…15388320`](https://explorer.testnet.whitechain.io/tx/0x02b6cfbd5715928eecfd5bd5b8283c9f9c8811cd8803ba840a2ceba615388320) |
 | GaslessTransfer deployment | [`0x86e52fbb…a6d2d718`](https://explorer.testnet.whitechain.io/tx/0x86e52fbb3689982c5fbfa2c112e5eefd560304f1ddc3fe6aa045a520a6d2d718) |
+| Subscriptions deployment | [`0x7a34c7e6…0a73aaee`](https://explorer.testnet.whitechain.io/tx/0x7a34c7e65536e95e99ca57a7d36ea20b2bf40d668e61ce48ae2de0de0a73aaee) |
 | Invoice created without gas (relayed `createFor`) | [`0x9cfc6f6d…e3c416cc`](https://explorer.testnet.whitechain.io/tx/0x9cfc6f6d54b3dbfdc06ffea1b91f6e7639f8c3df856e2c1828d33e15e3c416cc) |
 | Gasless USDT payment (relayed `payWithAuthorization`, 1 USDT) | [`0x8c7dfc4c…79e4eeb2`](https://explorer.testnet.whitechain.io/tx/0x8c7dfc4c484dabbb196aea0fa75e8b6dbc214f5d9af850c69200668d79e4eeb2) |
 | Refund without gas (relayed `refundWithAuthorization`, 1 USDT) | [`0x51207a48…cac2e890`](https://explorer.testnet.whitechain.io/tx/0x51207a48fa1c1b107655432da9af654e68d09b5b6758a4a255ddfcf6cac2e890) |
@@ -163,6 +166,7 @@ invoice was sent to, whoever paid it, and anyone holding the invoice's pay link.
 contracts/
   src/InvoiceRegistry.sol    invoices, payments, refunds
   src/GaslessTransfer.sol    send USDT without gas, for a fee in USDT
+  src/Subscriptions.sol      recurring payments from a USDT permit
   src/IUSDT.sol              the USDT functions Settle uses
   test/                      fork tests against the real USDT
   script/                    deployment, Whitechain Sepolia only
@@ -197,7 +201,9 @@ To deploy it, see [`DEPLOY.md`](DEPLOY.md).
   proven in fork tests and in the app against a fork.
 - An invoice keeps the fee estimated when it was created, so the relayer can be repaid a little
   more or less than the gas it later spends.
-- Subscriptions and reminders are not built yet.
+- Subscriptions have a contract and a relay API. Their screens are not built yet, so nobody has
+  subscribed on the live chain.
+- Reminders are not built yet.
 - The relayer is one wallet with one send queue, and rate limits are counted in memory. Both
   assume a single running copy of the app.
 - Email login has been used on the live chain less than wallet login. A wallet customer sees one

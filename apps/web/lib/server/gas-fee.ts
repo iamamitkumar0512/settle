@@ -6,6 +6,7 @@ import { chainClient } from "./relayer";
 // Typical gas for each relayed call, measured in fork tests and on the live chain.
 const PAY_GAS = 150_000n;
 const WITHDRAW_GAS = 160_000n;
+const CHARGE_GAS = 135_000n;
 // Fees are rounded up to 0.001 USDT.
 const STEP = 1_000n;
 const PRICE_TTL_MS = 5 * 60_000;
@@ -38,7 +39,8 @@ function inUsdt(gas: bigint, gasPrice: bigint, price: bigint) {
   return (microUsdt / STEP + 1n) * STEP;
 }
 
-// What a relayed payment and a relayed transfer cost the relayer in gas right now, in USDT.
+// What a relayed payment, transfer and subscription charge cost the relayer in gas right now,
+// in USDT.
 // Settle adds no margin: a fee only repays the gas.
 export async function relayFees() {
   const [price, gasPrice] = await Promise.all([
@@ -46,11 +48,17 @@ export async function relayFees() {
     chainClient.getGasPrice().catch(() => null),
   ]);
   if (price === null || gasPrice === null) {
-    return { payFee: FALLBACK_PAY_FEE, withdrawFee: FALLBACK_WITHDRAW_FEE };
+    return {
+      payFee: FALLBACK_PAY_FEE,
+      withdrawFee: FALLBACK_WITHDRAW_FEE,
+      chargeFee: FALLBACK_PAY_FEE,
+    };
   }
   return {
     payFee: inUsdt(PAY_GAS, gasPrice, price),
     withdrawFee: inUsdt(WITHDRAW_GAS, gasPrice, price),
+    // What collecting one period of a subscription costs. A plan stores it as its fee.
+    chargeFee: inUsdt(CHARGE_GAS, gasPrice, price),
   };
 }
 

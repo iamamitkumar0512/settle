@@ -42,6 +42,12 @@ export function uintField(value: unknown) {
   return typeof value === "string" && /^\d{1,78}$/.test(value) ? BigInt(value) : invalid();
 }
 
+// Solidity's uint32. It is small enough to travel as a JSON number, and the ABI takes one.
+export function uint32Field(value: unknown) {
+  const number = typeof value === "number" ? value : Number(uintField(value));
+  return Number.isInteger(number) && number >= 0 && number <= 0xffffffff ? number : invalid();
+}
+
 export function addressField(value: unknown): Address {
   return typeof value === "string" && isAddress(value) ? value : invalid();
 }
