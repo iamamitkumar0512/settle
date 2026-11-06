@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FreshOnVisit } from "@/components/fresh-on-visit";
 import { NewPlanForm } from "./new-plan-form";
 
 // These pages only render after login, so there is nothing to prerender for an instant navigation.
@@ -13,7 +14,9 @@ export default function NewPlanPage() {
         </Link>
         <h1 className="display mt-2 text-4xl/11">New plan</h1>
       </div>
-      <NewPlanForm />
+      <FreshOnVisit>
+        <NewPlanForm />
+      </FreshOnVisit>
     </main>
   );
 }
