@@ -25,6 +25,8 @@ export type OrderPaidEvent = EventBase & {
     /** What reached you after the network fee. */
     received: string;
     networkFee: string;
+    /** True when an AI agent bought this over x402. It then has no orderId. */
+    agent?: boolean;
   };
 };
 

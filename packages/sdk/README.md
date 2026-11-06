@@ -121,6 +121,33 @@ Answer with any 2xx status. Settle tries 3 times over a few seconds, and each fa
 Developers page with a Resend button. An event can arrive more than once, so use `event.id` to act
 on it only once. The address must be public https.
 
+## Sell to AI agents
+
+Put a price on a route, and an AI agent can buy from you over x402 with no account, no API key and
+no gas. Any standard x402 client works.
+
+```js
+export async function POST(request) {
+  const { product, quantity, requestId } = await request.json();
+
+  const sale = await settle.agents.charge(request, {
+    amount: priceOf(product, quantity),
+    description: `${quantity} x ${product}`,
+    // The agent's own id for this order, so a retry is never charged twice.
+    receipt: `order-${requestId}`,
+  });
+  // No payment yet: this is the 402 with your price.
+  if (!sale.paid) return sale.response;
+
+  return sale.respond({ order: sale.receipt, proof: sale.proofUrl });
+}
+```
+
+The network fee comes out of the sale in the same transaction. The order shows under Agent sales in
+your dashboard, and arrives at your webhook as `order.paid` with `agent: true`. `sale.repeat` is
+true when a retry found an order that was already paid. An agent pays you directly, so to refund
+one, send the money back with `settle.account.withdraw`.
+
 ## Everything you can call
 
 Results are plain text and numbers, so they go straight into `res.json()`. Amounts are USDT, like
@@ -137,6 +164,7 @@ Results are plain text and numbers, so they go straight into `res.json()`. Amoun
 | `payments.verify(response)` | Confirms a payment. |
 | `refunds.create({ orderId, amount })` | Refunds in part, or in full with no `amount`. It comes from your balance, and your customer sees it on their receipt. |
 | `paymentLinks.create(link)` | An invoice with a due date and a link to share. No code on your site. |
+| `agents.charge(request, price)` | Puts a price on a route, so AI agents can buy over x402. |
 | `webhooks.verify(rawBody, signature, secret)` | Checks a webhook came from Settle and returns its event. |
 | `account.balance()` | This account's USDT. |
 | `account.withdraw({ to, amount })` | Sends USDT to any address. The network fee comes out of `amount`. |

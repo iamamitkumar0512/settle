@@ -12,7 +12,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { DEFAULTS, USDT_DECIMALS } from "./config";
-import { RECEIVE_TYPES, usdtDomain } from "./signing";
+import { RECEIVE_TYPES, TRANSFER_TYPES, usdtDomain } from "./signing";
 
 export type SettleOptions = {
   /** From Settle, under Developers. It is your account's address. */
@@ -62,6 +62,8 @@ const MESSAGES: Record<string, string> = {
   daily_limit_reached: "You've reached today's limit for this action.",
   too_many_requests: "Too many requests. Wait a minute and try again.",
   log_in_again: "Settle refused this key. Check keyId and keySecret.",
+  amount_below_minimum: "That's below the smallest amount Settle accepts. See settle.fees().",
+  payment_in_progress: "A payment for this order number is still going through.",
   "ERC20: transfer amount exceeds balance": "This account doesn't have enough USDT.",
 };
 
@@ -163,7 +165,9 @@ export class Client {
       available: quote.available === true,
       relayFee: BigInt(String(quote.relayFee)),
       withdrawFee: BigInt(String(quote.withdrawFee)),
+      agentFee: BigInt(String(quote.agentFee)),
       minInvoice: BigInt(String(quote.minInvoice)),
+      relayer: quote.relayer as Address,
     };
   }
 
@@ -179,6 +183,23 @@ export class Client {
       domain: usdtDomain(this.chainId, this.usdtAddress),
       types: RECEIVE_TYPES,
       primaryType: "ReceiveWithAuthorization",
+      message,
+    });
+  }
+
+  // The same, but anyone can submit it: only this kind can go in one transaction with an agent's.
+  signUsdtTransfer(message: {
+    from: Address;
+    to: Address;
+    value: bigint;
+    validAfter: bigint;
+    validBefore: bigint;
+    nonce: Hex;
+  }) {
+    return this.account.signTypedData({
+      domain: usdtDomain(this.chainId, this.usdtAddress),
+      types: TRANSFER_TYPES,
+      primaryType: "TransferWithAuthorization",
       message,
     });
   }

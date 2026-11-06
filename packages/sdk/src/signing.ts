@@ -24,6 +24,32 @@ export function randomBytes32(): Hex {
   return bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
 }
 
+// The nonce of a merchant's gas repayment for a sale to an agent. It commits to the agent's payment
+// and to what was sold, so the merchant's one signature covers all of it.
+export function agentSaleNonce(
+  paymentNonce: Hex,
+  details: { merchantName: string; receipt: string; description: string },
+) {
+  return keccak256(
+    encodeAbiParameters(
+      [
+        { type: "string" },
+        { type: "bytes32" },
+        { type: "string" },
+        { type: "string" },
+        { type: "string" },
+      ],
+      [
+        "SETTLE_AGENT_SALE",
+        paymentNonce,
+        details.merchantName,
+        details.receipt,
+        details.description,
+      ],
+    ),
+  );
+}
+
 export function usdtDomain(chainId: number, usdt: Address) {
   return { name: "Tether USD", version: "1", chainId, verifyingContract: usdt } as const;
 }
@@ -40,6 +66,18 @@ export function registryDomain(chainId: number, registry: Address) {
 // USDT's EIP-3009 authorization. Only the address in `to` can use it.
 export const RECEIVE_TYPES = {
   ReceiveWithAuthorization: [
+    { name: "from", type: "address" },
+    { name: "to", type: "address" },
+    { name: "value", type: "uint256" },
+    { name: "validAfter", type: "uint256" },
+    { name: "validBefore", type: "uint256" },
+    { name: "nonce", type: "bytes32" },
+  ],
+} as const;
+
+// The standard authorization. Anyone can submit it, and it is what every x402 client signs.
+export const TRANSFER_TYPES = {
+  TransferWithAuthorization: [
     { name: "from", type: "address" },
     { name: "to", type: "address" },
     { name: "value", type: "uint256" },
