@@ -144,6 +144,42 @@ function SubscriberRow({
   );
 }
 
+// The same subscriber on a phone, where the table can't fit.
+function SubscriberItem({
+  subscription,
+  planActive,
+  now,
+  onChanged,
+}: {
+  subscription: Subscription;
+  planActive: boolean;
+  now: bigint;
+  onChanged: Refresh;
+}) {
+  const isDue = subscription.nextChargeAt <= now;
+
+  return (
+    <li className="flex flex-col gap-3 border-t border-line px-5 py-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="figure">{shortAddress(subscription.subscriber)}</div>
+          <div className="text-[13px]/[18px] text-muted">
+            {isDue
+              ? "Payment due now"
+              : `Next payment ${formatDateTime(new Date(Number(subscription.nextChargeAt) * 1000))}`}
+            {" · "}
+            {subscription.periodsLeft} left
+          </div>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {isDue && planActive && <CollectNow id={subscription.id} onChanged={onChanged} />}
+        <CancelSubscription id={subscription.id} onChanged={onChanged} />
+      </div>
+    </li>
+  );
+}
+
 function PlanCard({
   plan,
   details,
@@ -195,7 +231,20 @@ function PlanCard({
         )}
       </div>
       {active.length > 0 && (
-        <div className="overflow-x-auto">
+        <ul aria-label={`Active subscribers of plan ${plan.id}`} className="md:hidden">
+          {active.map((subscription) => (
+            <SubscriberItem
+              key={String(subscription.id)}
+              subscription={subscription}
+              planActive={plan.active}
+              now={now}
+              onChanged={onChanged}
+            />
+          ))}
+        </ul>
+      )}
+      {active.length > 0 && (
+        <div className="hidden overflow-x-auto md:block">
           <table className="data-table">
             <caption className="sr-only">Active subscribers of plan {String(plan.id)}</caption>
             <thead>

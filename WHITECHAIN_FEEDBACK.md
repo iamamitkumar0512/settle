@@ -13,11 +13,11 @@ pay with one signature and no gas.
   which is 0.00072 WBT. The L1 data fee on it was 4,227 wei.
 - **The test USDT supports EIP-3009 and EIP-2612.** This is what made the product possible:
   paying, refunding and sending USDT with one signature each.
-- **Forking the chain.** Our 81 contract tests run against the real USDT on a fork, not a mock.
+- **Forking the chain.** Our 132 contract tests run against the real USDT on a fork, not a mock.
   That proved the token accepts our signatures and enforces `msg.sender == to` on
   `receiveWithAuthorization`.
 - **Verification.** `forge verify-contract --verifier blockscout` with the explorer's `/api` URL
-  verified both contracts on the first try.
+  verified all three contracts on the first try.
 - **Standard contracts are already deployed.** Multicall3 lets the dashboard read every invoice in
   one call. Safe and the ERC-4337 EntryPoints are there too.
 - **The explorer's API.** `/api/v2/stats` returns a WBT price. We use it to convert gas into USDT,
@@ -44,9 +44,20 @@ pay with one signature and no gas.
 5. **Test USDT can't be minted by builders.** `mint` is owner-only and the owner is the bridge
    contract. On a fork we impersonate the owner.
    <!-- Amit: add how you got test USDT on the live testnet, and whether it was easy. -->
-6. **"Partially verified" on the explorer.** Both contracts passed verification, but the explorer
+6. **"Partially verified" on the explorer.** All three contracts passed verification, but the explorer
    API reports `is_fully_verified: false`. We think this is because we compile without the metadata
    hash (`bytecode_hash = "none"`). The explorer doesn't say why a match is partial.
+
+7. **No way for a new customer to get test USDT.** A person who opens a pay link and logs in with
+   an email has nothing to pay with, and we found no public faucet for the test USDT. We built a
+   "test money" button that sends a little from our own supply, once a day per account. That
+   supply is small, so it is capped.
+8. **Pay-per-request pricing has a floor.** We measured one USDT transfer by signature at 101,265
+   gas. At 5 gwei and the explorer's WBT price, that is about 0.037 USDT. The test USDT accepts a
+   standard x402-style `transferWithAuthorization` from a wallet holding no WBT, but a charge
+   under about 0.25 USDT would lose a large share to gas.
+9. **An order costs gas before anyone pays.** A store's order is created on-chain when checkout
+   opens, so an abandoned cart costs the relayer a few cents of gas. We cap it per merchant per day.
 
 ## What the docs were missing
 
@@ -56,6 +67,7 @@ pay with one signature and no gas.
 - **A "gasless on Whitechain" guide:** which account abstraction contracts are deployed, whether a
   hosted bundler or paymaster exists, and a reference relayer for EIP-3009.
 - **A WBT price source** to use on testnet.
+- **A faucet for the test USDT,** or a note saying who to ask for it.
 
 ## Not tested
 

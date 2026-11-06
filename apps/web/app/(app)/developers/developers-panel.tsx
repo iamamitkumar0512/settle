@@ -2,39 +2,13 @@
 
 import { useExportWallet } from "@privy-io/react-auth";
 import Link from "next/link";
-import { useState, useSyncExternalStore } from "react";
+import { useState } from "react";
 import type { Address } from "viem";
+import { CodeBlock, CopyButton } from "@/components/code-block";
+import { browserCode, serverCode, WEBHOOK_CODE } from "@/lib/integration-snippets";
 import { useSession } from "@/lib/use-session";
+import { useSiteOrigin } from "@/lib/use-site-origin";
 import { WebhookSettings } from "./webhook-settings";
-
-function CopyButton({ text, label }: { text: string; label: string }) {
-  const [copied, setCopied] = useState(false);
-
-  async function copy() {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }
-
-  return (
-    <button type="button" className="btn" onClick={copy}>
-      {copied ? "Copied" : label}
-    </button>
-  );
-}
-
-function CodeBlock({ code, label }: { code: string; label: string }) {
-  return (
-    <div className="flex flex-col gap-2">
-      <pre className="well overflow-x-auto text-[13px]/[20px]">
-        <code>{code}</code>
-      </pre>
-      <div>
-        <CopyButton text={code} label={label} />
-      </div>
-    </div>
-  );
-}
 
 // Privy shows the key in a window on its own domain, so this page and Settle never see it.
 function RevealSecret({ address }: { address: Address }) {
@@ -65,74 +39,6 @@ function RevealSecret({ address }: { address: Address }) {
   );
 }
 
-function noChange() {
-  return () => undefined;
-}
-
-function useSiteOrigin() {
-  return useSyncExternalStore(
-    noChange,
-    () => window.location.origin,
-    () => "",
-  );
-}
-
-function serverCode(keyId: string, site: string) {
-  return `import Settle from "settle-pay";
-
-const settle = new Settle({
-  keyId: "${keyId}",
-  keySecret: process.env.SETTLE_KEY_SECRET,
-  businessName: "Your business",
-  baseUrl: "${site}",
-});
-
-// Create an order when the customer clicks Buy.
-app.post("/orders", async (req, res) => {
-  const order = await settle.orders.create({
-    amount: "3.00",
-    description: "Masala chai blend",
-    receipt: "order_42",
-  });
-  res.json(order);
-});
-
-// Confirm the payment before you ship anything.
-app.post("/verify", async (req, res) => {
-  const payment = await settle.payments.verify(req.body);
-  res.json(payment);
-});`;
-}
-
-function browserCode(site: string) {
-  return `<script src="${site}/checkout.js"></script>
-<script>
-  const post = (url, body) =>
-    fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }).then((response) => response.json());
-
-  buyButton.onclick = () =>
-    new Settle.Checkout({
-      orderId: () => post("/orders").then((order) => order.id),
-      handler: (response) => post("/verify", response),
-    }).open();
-</script>`;
-}
-
-const WEBHOOK_CODE = `// Express: keep the raw body, because the signature covers the exact bytes.
-app.post("/webhooks/settle", express.raw({ type: "application/json" }), (req, res) => {
-  const event = settle.webhooks.verify(
-    req.body,
-    req.headers["x-settle-signature"],
-    process.env.SETTLE_WEBHOOK_SECRET,
-  );
-  if (event.type === "order.paid") fulfil(event.data.receipt);
-  res.sendStatus(200);
-});`;
-
 export function DevelopersPanel() {
   const { address, kind } = useSession();
   const site = useSiteOrigin();
@@ -145,7 +51,12 @@ export function DevelopersPanel() {
           <h1 className="display text-4xl/11">Developers</h1>
           <span className="pill tone-due">Test mode</span>
         </div>
-        <p className="mt-1 text-muted">Add Settle to your own website and accept USDT there.</p>
+        <p className="mt-1 text-muted">
+          Add Settle to your own website and accept USDT there.{" "}
+          <Link href="/docs" className="text-accent-text">
+            Read the full guide
+          </Link>
+        </p>
       </div>
 
       <section aria-label="API keys" className="card flex flex-col gap-4 p-5">
@@ -183,7 +94,7 @@ export function DevelopersPanel() {
         </div>
         <div className="flex flex-col gap-2 border-t border-line pt-4">
           <h3 className="font-semibold">2. On your server</h3>
-          <CodeBlock code={serverCode(address, site)} label="Copy server code" />
+          <CodeBlock code={serverCode(`"${address}"`, site)} label="Copy server code" />
         </div>
         <div className="flex flex-col gap-2 border-t border-line pt-4">
           <h3 className="font-semibold">3. In your page</h3>

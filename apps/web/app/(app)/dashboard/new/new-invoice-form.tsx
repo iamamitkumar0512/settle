@@ -21,6 +21,7 @@ import { postJson } from "@/lib/relay-client";
 import { saveInvoiceDetails } from "@/lib/save-invoice-details";
 import { createInvoiceRequest } from "@/lib/typed-data";
 import { useRelayQuote } from "@/lib/use-relay-quote";
+import { useMerchantProfile } from "@/lib/use-merchant-profile";
 import { useSession } from "@/lib/use-session";
 import { useSignedAction } from "@/lib/use-signed-action";
 
@@ -149,6 +150,10 @@ export function NewInvoiceForm() {
   const quote = useRelayQuote();
 
   const [form, setForm] = useState(EMPTY_FORM);
+  // The name from their last invoice, until they type another.
+  const savedName = useMerchantProfile(session.address).businessName;
+  const [nameEdited, setNameEdited] = useState(false);
+  const merchantName = nameEdited ? form.merchantName : savedName;
   const [amountError, setAmountError] = useState<string>();
   const [dateError, setDateError] = useState<string>();
   const [nameError, setNameError] = useState<string>();
@@ -178,6 +183,7 @@ export function NewInvoiceForm() {
 
   function reset() {
     setForm(EMPTY_FORM);
+    setNameEdited(false);
     action.clearError();
     setCreated(undefined);
     setPdf(undefined);
@@ -204,17 +210,17 @@ export function NewInvoiceForm() {
           : `Enter at least ${formatUsdt(minimum)} USDT.`,
     );
     setDateError(dueAt === null ? "Choose today or a later date." : undefined);
-    setNameError(form.merchantName.trim() ? undefined : "Enter your business name.");
+    setNameError(merchantName.trim() ? undefined : "Enter your business name.");
     const contact = parseCustomerContact(form.customerContact);
     setEmailError(
       contact
         ? undefined
         : "Enter your customer's email or wallet address, so they can find this invoice.",
     );
-    if (!amountValid || dueAt === null || !form.merchantName.trim() || !contact) return;
+    if (!amountValid || dueAt === null || !merchantName.trim() || !contact) return;
     if (pdf && pdfProblem(pdf)) return;
 
-    const { merchantName, customerName, memo } = form;
+    const { customerName, memo } = form;
     const details = { merchantName, customerName, ...contact, memo };
     const salt = newSalt();
     const typed = createInvoiceRequest({
@@ -281,8 +287,11 @@ export function NewInvoiceForm() {
                   autoComplete="organization"
                   maxLength={MAX_MERCHANT_NAME}
                   aria-invalid={nameError ? true : undefined}
-                  value={form.merchantName}
-                  onChange={(event) => update("merchantName", event.target.value)}
+                  value={merchantName}
+                  onChange={(event) => {
+                    setNameEdited(true);
+                    update("merchantName", event.target.value);
+                  }}
                 />
                 {nameError && (
                   <span role="alert" className="text-[13px]/[18px] font-normal text-late">
@@ -292,7 +301,7 @@ export function NewInvoiceForm() {
               </label>
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="field">
-                  Customer
+                  Customer name
                   <input
                     className="input"
                     type="text"
@@ -434,7 +443,7 @@ export function NewInvoiceForm() {
           <div className="label">What your customer sees</div>
           <div data-theme="light" className="theme-root rounded-[14px] p-6">
             <div className="card flex flex-col gap-4 p-6">
-              <div className="display text-lg">{form.merchantName || "—"}</div>
+              <div className="display text-lg">{merchantName || "—"}</div>
               <div>
                 <div className="text-[13px]/[18px] text-muted">
                   {form.memo || "—"}

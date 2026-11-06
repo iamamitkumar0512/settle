@@ -103,6 +103,23 @@ export function relay(call: RelayCall) {
   return next;
 }
 
+const NONCE_RETRIES = 3;
+
+// The queue above covers one copy of the server. Another copy can pick the same nonce, and then
+// the later transaction is refused. Sending again picks up the next one. Nothing was spent.
+async function retryOnNonceClash(write: () => Promise<Hash>) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await write();
+    } catch (error) {
+      const text = error instanceof Error ? error.message.toLowerCase() : "";
+      const isClash = /nonce|replacement transaction underpriced|already known/.test(text);
+      if (!isClash || attempt >= NONCE_RETRIES) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
+    }
+  }
+}
+
 async function send(call: RelayCall): Promise<{ hash: Hash; receipt: TransactionReceipt }> {
   const account = relayerAccount();
   const [balance, fees] = await Promise.all([
@@ -126,12 +143,14 @@ async function send(call: RelayCall): Promise<{ hash: Hash; receipt: Transaction
     chain: whitechainSepolia,
     transport: http(process.env.RPC_ENDPOINT),
   });
-  const hash = await wallet.writeContract({
-    ...call,
-    gas: (gas * 12n) / 10n,
-    maxFeePerGas: fees.maxFeePerGas,
-    maxPriorityFeePerGas: fees.maxPriorityFeePerGas,
-  });
+  const hash = await retryOnNonceClash(() =>
+    wallet.writeContract({
+      ...call,
+      gas: (gas * 12n) / 10n,
+      maxFeePerGas: fees.maxFeePerGas,
+      maxPriorityFeePerGas: fees.maxPriorityFeePerGas,
+    }),
+  );
   const receipt = await chainClient.waitForTransactionReceipt({ hash });
   if (receipt.status !== "success") throw new RelayError(502, "transaction_reverted");
   return { hash, receipt };

@@ -23,6 +23,9 @@ Postgres would still win on some things: private data, instant updates, and quer
   plain text. Arkiv's
   guidance is that private information should stay off Arkiv. We chose to store these encrypted
   anyway, using the official `arkiv-encryption` package, so that Settle needs no second database.
+- **Webhook secrets in plain text.** A merchant's webhook address and signing secret are stored
+  encrypted, with the merchant's address inside the encrypted part so a copied record won't open
+  for another merchant. The delivery log is public, and holds only what the chain already shows.
 - **The encryption key.** It stays on our server. Losing it means those fields can't be read again.
 - **Files.** A PDF invoice is too large for an entity, so it goes to Swarm, encrypted. Arkiv
   holds only where it is. See [`swarm.md`](swarm.md).

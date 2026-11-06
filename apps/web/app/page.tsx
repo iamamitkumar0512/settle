@@ -1,62 +1,60 @@
 import Link from "next/link";
-import { Logo } from "@/components/logo";
+import { SiteFooter, SiteHeader } from "@/components/site-header";
 import { whitechainSepolia } from "@/lib/chains";
 import { REGISTRY_ADDRESS } from "@/lib/contracts";
-import { ChainStatus } from "./chain-status";
+import { ChainStatus, LiveFee } from "./chain-status";
 
 const EXPLORER = whitechainSepolia.blockExplorers.default.url;
+const DEMO_STORE = process.env.NEXT_PUBLIC_DEMO_STORE_URL;
 
-const STEPS = [
-  {
-    title: "Send a link",
-    text: "Create an invoice with an amount and a due date, then share its pay link.",
-  },
-  {
-    title: "They pay by email",
-    text: "No wallet to install and no gas to buy. USDT reaches your wallet directly.",
-  },
-  {
-    title: "Refund any time",
-    text: "Refund in part or in full. The customer sees it on the same receipt.",
-  },
+const CODE = `const order = await settle.orders.create({
+  amount: "3.00",
+});
+
+new Settle.Checkout({
+  orderId: order.id,
+  handler: confirmOnServer,
+}).open();`;
+
+const COMPARISON = [
+  { row: "Fee on a 1,000 sale", card: "About 30, at 3%", settle: null },
+  { row: "Money arrives", card: "In days", settle: "In seconds" },
+  { row: "Chargebacks", card: "Yes", settle: "None. Refunds are yours to give" },
+  { row: "Customers abroad", card: "Currency conversion", settle: "The same USDT everywhere" },
+];
+
+const AFTER_PAYMENT = [
+  { title: "Refunds", text: "In part or in full, from the dashboard or your code. They show on the receipt." },
+  { title: "Subscriptions", text: "A customer approves once, is billed on schedule and can cancel any time." },
+  { title: "Reminders", text: "Customers see what is due. You can nudge them, and they can add it to a calendar." },
+  { title: "Webhooks", text: "Your server is told about each payment and refund, signed by Settle." },
+  { title: "Receipts", text: "A permanent receipt for every payment, with proof anyone can check." },
+  { title: "Accounting export", text: "One CSV with every payment, fee and refund." },
 ];
 
 export default function Home() {
   return (
     <div className="flex flex-1 flex-col">
-      <header className="mx-auto flex h-[76px] w-full max-w-[1240px] items-center justify-between px-4 md:px-8">
-        <Logo />
-        <nav aria-label="Main" className="flex items-center gap-2">
-          {process.env.NEXT_PUBLIC_DEMO_STORE_URL && (
-            <a href={process.env.NEXT_PUBLIC_DEMO_STORE_URL} className="btn">
-              Demo store
-            </a>
-          )}
-          <Link href="/pay" className="btn">
-            My invoices
-          </Link>
-          <Link href="/dashboard" className="btn btn-primary">
-            Dashboard
-          </Link>
-        </nav>
-      </header>
+      <SiteHeader />
 
       <main className="flex-1">
         <section className="mx-auto grid w-full max-w-[1240px] items-center gap-12 px-4 pt-10 pb-16 md:px-8 md:pt-[72px] md:pb-[88px] lg:grid-cols-[6fr_5fr] lg:gap-16">
           <div>
+            <span className="pill tone-due mb-5">Test mode on Whitechain Sepolia</span>
             <h1 className="display text-[44px]/[48px] tracking-tight md:text-[68px]/[72px]">
-              Get paid in USDT. Your customer never sees crypto.
+              The payment gateway for USDT.
             </h1>
             <p className="mt-6 mb-8 max-w-[34em] text-[17px]/7 text-muted md:text-[19px]/[30px]">
-              Invoices, pay links and refunds on Whitechain. Customers pay with an email. You cover
-              the gas, and only for your own payments.
+              Add checkout to your website in about 20 lines, or send an invoice with no code at all.
+              Your customer pays with an email address. There&apos;s no wallet to install and nothing
+              to buy first.
             </p>
             <div className="flex flex-wrap gap-2">
-              <Link href="/dashboard/new" className="btn btn-primary min-h-[52px] px-[22px] text-base">
-                Create an invoice
+              <Link href="/dashboard" className="btn btn-primary min-h-[52px] px-[22px] text-base">
+                Start getting paid
               </Link>
-              <Link href="/pay" className="btn min-h-[52px] px-[22px] text-base">
-                Pay an invoice
+              <Link href="/docs" className="btn min-h-[52px] px-[22px] text-base">
+                Add to your website
               </Link>
             </div>
           </div>
@@ -69,7 +67,7 @@ export default function Home() {
               </div>
               <div className="well flex flex-col gap-2 text-[13px]/[18px]">
                 <div className="flex items-baseline justify-between gap-4">
-                  <span className="text-muted">Invoice contract</span>
+                  <span className="text-muted">Payment contract</span>
                   <a
                     href={`${EXPLORER}/address/${REGISTRY_ADDRESS}`}
                     target="_blank"
@@ -82,7 +80,7 @@ export default function Home() {
                 <ChainStatus />
               </div>
               <p className="text-[13px]/[18px] text-muted">
-                The contract never holds your money, and it has no owner.
+                Money goes straight to you. The contract never holds it, and it has no owner.
               </p>
             </div>
           </div>
@@ -90,23 +88,135 @@ export default function Home() {
 
         <section className="border-t border-line px-4 py-16 md:px-8 md:py-[72px]">
           <div className="mx-auto max-w-[1176px]">
-            <h2 className="display mb-8 text-[28px]/9 md:text-4xl/11">From invoice to refund</h2>
-            <ol className="grid gap-6 md:grid-cols-3">
-              {STEPS.map((step, index) => (
-                <li key={step.title} className="card p-6">
-                  <div className="figure text-muted">0{index + 1}</div>
-                  <h3 className="display mt-3 mb-1.5 text-xl">{step.title}</h3>
-                  <p className="text-muted">{step.text}</p>
+            <h2 className="display mb-8 text-[28px]/9 md:text-4xl/11">Two ways to get paid</h2>
+            <div className="grid gap-6 md:grid-cols-2">
+              <article className="card flex min-w-0 flex-col gap-4 p-6">
+                <h3 className="display text-xl">On your website</h3>
+                <p className="text-muted">
+                  Install the SDK, create an order on your server and open Settle Checkout from your
+                  page. It works the way a card gateway does, and your customer stays on your site.
+                </p>
+                <pre className="well min-w-0 overflow-x-auto text-[13px]/[20px]">
+                  <code>{CODE}</code>
+                </pre>
+                <div className="mt-auto flex flex-wrap gap-2">
+                  <Link href="/docs" className="btn btn-primary">
+                    Read the docs
+                  </Link>
+                  <Link href="/developers" className="btn">
+                    Get your keys
+                  </Link>
+                  {DEMO_STORE && (
+                    <a href={DEMO_STORE} className="btn">
+                      Try a live store
+                    </a>
+                  )}
+                </div>
+              </article>
+              <article className="card flex min-w-0 flex-col gap-4 p-6">
+                <h3 className="display text-xl">With a link</h3>
+                <p className="text-muted">
+                  No website needed. Create an invoice or a subscription plan in your dashboard,
+                  share the link, and see who has paid.
+                </p>
+                <ol className="flex flex-col gap-3">
+                  {[
+                    "Create an invoice with an amount and a due date",
+                    "Send your customer its link",
+                    "They pay with an email address",
+                  ].map((step, index) => (
+                    <li key={step} className="well flex items-center gap-3">
+                      <span className="figure text-muted">0{index + 1}</span>
+                      {step}
+                    </li>
+                  ))}
+                </ol>
+                <div className="mt-auto">
+                  <Link href="/dashboard/new" className="btn btn-primary">
+                    Create an invoice
+                  </Link>
+                </div>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section className="border-t border-line px-4 py-16 md:px-8 md:py-[72px]">
+          <div className="mx-auto max-w-[1176px]">
+            <h2 className="display mb-2 text-[28px]/9 md:text-4xl/11">
+              A flat fee, not a percentage
+            </h2>
+            <p className="mb-8 max-w-[40em] text-muted">
+              Settle adds no fee of its own. A small network fee repays the cost of sending the
+              payment, and it is the same on any amount.
+            </p>
+            <ul aria-label="Settle compared with a typical card gateway" className="card md:hidden">
+              {COMPARISON.map(({ row, card, settle }) => (
+                <li key={row} className="flex flex-col gap-2 border-t border-line p-5 first:border-t-0">
+                  <div className="font-semibold">{row}</div>
+                  <div className="flex justify-between gap-4 text-[13px]/[18px]">
+                    <span className="text-muted">Card gateway</span>
+                    <span className="text-right text-muted">{card}</span>
+                  </div>
+                  <div className="flex justify-between gap-4 text-[13px]/[18px]">
+                    <span className="text-muted">Settle</span>
+                    <span className={`text-right ${settle ? "" : "figure text-accent-text"}`}>
+                      {settle ?? <LiveFee />}
+                    </span>
+                  </div>
                 </li>
               ))}
-            </ol>
+            </ul>
+            <div className="card hidden overflow-x-auto md:block">
+              <table className="data-table compare-table">
+                <caption className="sr-only">Settle compared with a typical card gateway</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">
+                      <span className="sr-only">Compared</span>
+                    </th>
+                    <th scope="col" className="label">
+                      Typical card gateway
+                    </th>
+                    <th scope="col" className="label">
+                      Settle
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {COMPARISON.map(({ row, card, settle }) => (
+                    <tr key={row}>
+                      <th scope="row">{row}</th>
+                      <td className="text-muted">{card}</td>
+                      <td className={settle ? "" : "figure text-accent-text"}>
+                        {settle ?? <LiveFee />}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section className="border-t border-line px-4 py-16 md:px-8 md:py-[72px]">
+          <div className="mx-auto max-w-[1176px]">
+            <h2 className="display mb-8 text-[28px]/9 md:text-4xl/11">
+              Everything after the first payment
+            </h2>
+            <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {AFTER_PAYMENT.map(({ title, text }) => (
+                <li key={title} className="card p-6">
+                  <h3 className="display mb-1.5 text-xl">{title}</h3>
+                  <p className="text-muted">{text}</p>
+                </li>
+              ))}
+            </ul>
           </div>
         </section>
       </main>
 
-      <footer className="border-t border-line p-6 text-center text-[13px]/[18px] text-muted">
-        Settle · Built for ETHGlobal Mumbai 2026 · Testnet
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

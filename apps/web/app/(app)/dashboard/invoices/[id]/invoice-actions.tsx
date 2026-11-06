@@ -21,8 +21,9 @@ export function CancelCard({
   invoice,
   contact,
   isOverdue,
+  isOrder,
   onChanged,
-}: ActionProps & { contact: ReminderContact; isOverdue: boolean }) {
+}: ActionProps & { contact: ReminderContact; isOverdue: boolean; isOrder: boolean }) {
   const action = useSignedAction();
   const [confirming, setConfirming] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -51,7 +52,7 @@ export function CancelCard({
       <button type="button" className="btn btn-primary" onClick={copyLink}>
         {copied ? "Link copied" : "Copy pay link"}
       </button>
-      <RemindCustomer invoice={invoice} contact={contact} isOverdue={isOverdue} />
+      {!isOrder && <RemindCustomer invoice={invoice} contact={contact} isOverdue={isOverdue} />}
       {confirming ? (
         <div className="well flex flex-col gap-3">
           <p className="text-[13px]/[18px]">

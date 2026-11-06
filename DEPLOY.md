@@ -1,92 +1,196 @@
 # Deploying Settle
 
-The app is one Next.js project in `apps/web`. These steps are for Vercel. They have not been run
-yet, so treat the first deploy as a test.
+Three things go live. The contracts are already deployed and verified, so nothing changes there.
 
-## 1. Project settings
+| What | Where | From |
+|---|---|---|
+| The Settle app | Vercel project 1 | `apps/web` |
+| The demo store, Chai Point | Vercel project 2 | `apps/shop` |
+| The SDK, `settle-pay` | npm | `packages/sdk` |
+
+These steps have not been run yet, so treat the first deploy as a test. Allow about an hour.
+
+## What is needed from you
+
+Only you can do these, because they need your accounts, keys or funds.
+
+| # | What | Why |
+|---|---|---|
+| 1 | Commit and push `main` | Vercel builds from GitHub. |
+| 2 | A Vercel account connected to the GitHub repo | Hosts both projects. The free plan is enough. |
+| 3 | The values in your local `apps/web/.env` | They become the app's settings on Vercel. |
+| 4 | Access to the Privy dashboard | To allow the deployed address, and to allow wallet export. |
+| 5 | WBT in the relayer wallet, 0.2 or more | It pays the gas for every relayed action. |
+| 6 | Test USDT in the relayer wallet, about 40 | It funds the "Add test USDT" button for new accounts. |
+| 7 | A second Settle account, made with an email used only for the store | Its keys go into the store. |
+| 8 | An npm account | To publish `settle-pay`. Optional, but the docs tell developers to install it. |
+| 9 | A Swarm postage batch, from the Swarm booth | Optional. Needed for the Swarm bonus. |
+| 10 | A domain verified in Resend | Optional. Without it, emails only reach your own Resend address. |
+
+The relayer wallet is `0x21dc07cFe6Aa4f141b5950CFb72F310F5817836C`.
+
+## Step 1: Deploy the app
+
+Create a Vercel project from the repo with these settings.
 
 | Setting | Value |
 |---|---|
 | Root Directory | `apps/web` |
 | Framework preset | Next.js |
 | Build and install commands | Leave the defaults |
-| Include files outside the Root Directory | On. The repo is a workspace. |
+| Include files outside the Root Directory | On |
 | Node.js | 20 or newer |
 
-The repo is a pnpm workspace, so dependencies install from the repo root.
+Add these settings before the first build.
 
-## 2. Environment variables
-
-Use the same values as your local `apps/web/.env`.
-
-| Variable | Needed | What it is |
+| Variable | Needed | Value |
 |---|---|---|
-| `PRIVY_APP_ID` | Yes | Email login. |
-| `RELAYER_PK` | Yes | The relayer wallet's key. It pays gas, so it needs WBT. |
-| `ARKIV_ACCESS_KEY` | Yes | Reads and writes on Arkiv. |
-| `ARKIV_PRIVATE_KEY` | Yes | The wallet that writes Arkiv records. It needs Arkiv test tokens. |
-| `ARKIV_DATA_KEY` | Yes | Encrypts customer details. **Must be the same key you use locally.** A different key can't read existing records, and it changes every pay link. |
-| `RPC_ENDPOINT` | Recommended | Server RPC for the relayer. Without it the app uses the public RPC. |
-| `NEXT_PUBLIC_RPC_URL` | Optional | Browser RPC. Defaults to the public RPC. Anything here is visible to visitors. |
+| `PRIVY_APP_ID` | Yes | Same as local. |
+| `RELAYER_PK` | Yes | Same as local. |
+| `ARKIV_ACCESS_KEY` | Yes | Same as local. |
+| `ARKIV_PRIVATE_KEY` | Yes | Same as local. |
+| `ARKIV_DATA_KEY` | Yes | **Exactly the same as local.** A different key can't read existing records, and it changes every pay link. |
+| `RPC_ENDPOINT` | Recommended | Same as local. Without it the app uses the public RPC. |
+| `DEMO_TOPUP_USDT` | Yes, for judges | `5`. Without it a new customer has no way to get test money. |
+| `CRON_SECRET` | Recommended | Any long random text. It protects the two daily jobs. |
 | `SWARM_BEE_URL`, `SWARM_BATCH_ID` | Optional | PDF invoices. The upload field is hidden without both. |
-| `NEXT_PUBLIC_DEMO_STORE_URL` | Optional | The demo store's address. The landing page links to it. |
+| `RESEND_API_KEY` | Optional | Reminder emails. |
+| `REMINDER_FROM` | Optional | A sender on your verified Resend domain. |
+| `NEXT_PUBLIC_RPC_URL` | Optional | Browser RPC. Anything here is visible to visitors. |
 
-| `CRON_SECRET` | Recommended | Protects the daily jobs. Vercel Cron sends it by itself. |
-| `RESEND_API_KEY` | Optional | Automatic email reminders. Without it none are sent, and nothing else changes. |
-| `REMINDER_FROM` | Optional | The sender, on a domain verified in Resend. Without it, Resend's test sender is used, which only delivers to your Resend account's own address. |
-| `APP_URL` | Optional | The app's public address, for links in emails. Defaults to the address a request came to. |
+To make a `CRON_SECRET`:
 
-Leave these unset. They point the app at test contracts:
-`NEXT_PUBLIC_REGISTRY_ADDRESS`, `NEXT_PUBLIC_TRANSFER_ADDRESS`,
+```bash
+openssl rand -hex 32
+```
+
+**Never set these on Vercel.** They are for local testing only:
+`WEBHOOK_ALLOW_LOCAL`, `NEXT_PUBLIC_REGISTRY_ADDRESS`, `NEXT_PUBLIC_TRANSFER_ADDRESS`,
 `NEXT_PUBLIC_SUBSCRIPTIONS_ADDRESS`, `NEXT_PUBLIC_LOGS_RPC_URL`.
 
-Optional tuning, with defaults: `MIN_INVOICE_USDT` (1), `RELAYER_MIN_WBT` (0.005),
-`RELAYER_MAX_FEE_GWEI` (50), `RELAYER_FREE_PER_DAY` (500), and `RELAY_FEE_USDT` and
-`WITHDRAW_FEE_USDT` (0.05 each, used only when the WBT price can't be read).
+Deploy, and note the address Vercel gives you. It is called `<app>` below.
 
-## 3. After the first deploy
+## Step 2: Allow the address in Privy
 
-1. In the Privy dashboard, add the deployed domain to the app's allowed origins. Email login fails
-   on a domain Privy doesn't know.
-2. Open `https://<your domain>/api/relay/health`. It should show the relayer's address, its WBT
-   balance and `"ok": true`.
-3. Open `https://<your domain>/api/relay/quote`. `available` should be `true`.
-4. Create an invoice, pay it from a second browser profile, then refund part of it.
-5. Put the deployed URL in [`README.md`](README.md) and [`arkiv/reach.md`](arkiv/reach.md).
+1. In the Privy dashboard, add `<app>` to the app's allowed origins. Email login fails on an
+   address Privy doesn't know.
+2. Check that exporting an embedded wallet's key is allowed. The Developers page uses it for
+   "Reveal key secret".
 
-## 4. The demo store
+## Step 3: Check the app
 
-`apps/shop` is a separate website, so it is a second Vercel project on the same repo.
+| Open | You should see |
+|---|---|
+| `<app>/api/relay/health` | The relayer's address, its WBT balance and `"ok": true`. |
+| `<app>/api/relay/quote` | `"available": true` and `"topUpAmount": "5000000"`. |
+| `<app>` | The landing page, with a live network fee in the card. |
+| `<app>/docs` | The public guide. |
 
-1. Log in to the Settle app with the account the store is paid into. An account made for this is
-   best. Open Developers and copy its keys.
-2. Create the project with Root Directory `apps/shop` and leave the commands as they are.
-3. Set `SETTLE_KEY_ID`, `SETTLE_KEY_SECRET` and `SETTLE_BASE_URL`. The last is the Settle app's
-   address, and it is needed at build time too, because the store loads `checkout.js` from there.
-4. Put the store's address in the app's `NEXT_PUBLIC_DEMO_STORE_URL` and redeploy the app.
-5. On the same Developers page, add `https://<the store>/api/webhooks/settle` as the webhook. Copy
-   its signing secret into the store's `SETTLE_WEBHOOK_SECRET` and redeploy the store.
+Then log in with an email, create an invoice for 1 USDT, and pay it from a private window with
+another email. This is Parts 2 and 3 of [`TESTING.md`](TESTING.md).
 
-## 5. Publishing the SDK
+## Step 4: Publish the SDK
 
-1. Set `baseUrl` in `DEFAULTS` in `packages/sdk/src/config.ts` to the deployed app.
-2. Run `npm publish` in `packages/sdk`.
-3. In `apps/shop/package.json`, replace `workspace:*` with the published version, so the store
-   installs it from npm like any other website. `next build` is then enough as its build command.
+1. In `packages/sdk/src/config.ts`, set `baseUrl` in `DEFAULTS` to `<app>`. A store can then leave
+   `baseUrl` out.
+2. Commit that, then publish:
+
+```bash
+cd packages/sdk
+npm login
+npm publish
+```
+
+3. Check that it is there:
+
+```bash
+npm view settle-pay version
+```
+
+If you skip this step, everything still works, because the store builds the SDK from this repo.
+Only the line `npm install settle-pay` in the docs would fail for an outside developer.
+
+## Step 5: Deploy the demo store
+
+1. In `<app>`, log in with the email you keep for the store. Open **Developers**, copy the Key ID,
+   and press **Reveal key secret** to copy the secret.
+2. Create a second Vercel project from the same repo.
+
+| Setting | Value |
+|---|---|
+| Root Directory | `apps/shop` |
+| Framework preset | Next.js |
+| Build and install commands | Leave the defaults |
+| Include files outside the Root Directory | On |
+
+3. Add its settings.
+
+| Variable | Value |
+|---|---|
+| `SETTLE_KEY_ID` | The store account's Key ID. |
+| `SETTLE_KEY_SECRET` | The store account's Key Secret. |
+| `SETTLE_BASE_URL` | `<app>`, with no slash at the end. It is needed at build time too. |
+| `SETTLE_WEBHOOK_SECRET` | Leave empty for now. Step 6 fills it. |
+
+4. Deploy, and note its address. It is called `<store>` below.
+
+A new account can hold 5 unpaid orders until its first payment arrives. Buy one item from the
+store yourself straight away, so judges who open checkout and leave can't block it.
+
+## Step 6: Connect the two
+
+1. In the app's Vercel settings, set `NEXT_PUBLIC_DEMO_STORE_URL` to `<store>` and redeploy the app.
+   The landing page and docs then link to the store.
+2. In `<app>`, logged in as the store account, open **Developers**. Under Webhooks, save
+   `<store>/api/webhooks/settle`.
+3. Press **Show secret**, copy it into the store's `SETTLE_WEBHOOK_SECRET` on Vercel, and redeploy
+   the store.
+4. Press **Send test event**. It should say "Test event delivered."
+
+## Step 7: Run it live and collect proof
+
+Follow [`TESTING.md`](TESTING.md) on the deployed app. While you do, save these explorer links.
+The README's proof table has the first three kinds already and none of the rest.
+
+| Action | Where the link appears |
+|---|---|
+| A store order paid through checkout | The receipt's "Proof on Whitechain" |
+| A subscription started | The explorer, from the customer's address |
+| A subscription payment collected | The explorer, from the relayer's address |
+| A subscription cancelled | The explorer, from the relayer's address |
+| A withdrawal with no gas | The "Sent." line on the Account page |
+
+Give me the links and I will add them to the README.
+
+## Step 8: Finish the submission
+
+| File | What to fill in |
+|---|---|
+| `README.md` | The deployed address and the video link, at the top. |
+| `arkiv/reach.md` | The deployed address, and your own answer on whether you'll keep building. |
+| `arkiv/swarm.md` | The postage batch and the video timestamp, if you got a batch. |
+| `WHITECHAIN_FEEDBACK.md` | One line on how you got test USDT, where the comment asks. |
+
+Then record the video, 2 to 4 minutes, showing each party: the merchant, the paying customer and
+the store. Submit on the ETHGlobal dashboard before 09:00 IST on Saturday, with Whitechain and
+Arkiv as partners. Aim for 08:30, not 08:59.
 
 ## Things to know
 
-- **One relayer, one queue.** The relayer sends transactions one at a time inside one server
-  process, and rate limits are counted in memory. If the platform runs several copies of the app
-  at once, two can pick the same nonce and one request fails. The user can retry. Limits also
-  reset when a copy restarts.
+- **Daily jobs.** `apps/web/vercel.json` runs `/api/cron/charge` at 06:00 UTC and
+  `/api/cron/reminders` at 07:00 UTC. Once a day is as often as Vercel's free plan allows. A plan
+  billed more often is collected late unless its merchant presses **Collect now**.
+- **Several copies of the server.** Vercel can run more than one. The relayer sends again if two
+  copies pick the same transaction number. Rate limits and the once-a-day test money are counted
+  inside each copy, so they are looser than they look.
+- **Test money runs down.** Each new account can take up to 5 test USDT. Money that customers
+  spend lands in your merchant and store accounts, and you can send it back to the relayer from
+  the Account page.
 - **Time limits.** Routes that send a transaction or write to Arkiv allow 60 seconds.
-- **Reminders.** `apps/web/vercel.json` also runs `/api/cron/reminders` once a day at 07:00 UTC.
-  It must run once a day, no more and no less: each reminder goes out on the one run that falls
-  inside its day-wide window.
-- **Subscription payments.** `apps/web/vercel.json` runs `/api/cron/charge` once a day at 06:00
-  UTC, which is as often as Vercel's free plan allows. A plan with a shorter period is collected
-  late unless something else calls that route, or `/api/relay/charge` for one subscription.
 - **Uploads.** PDFs are limited to 2 MB, under Vercel's 4.5 MB request limit.
-- **Pay links.** A link copied from one domain doesn't open on another, but its key is the same
+- **Pay links.** A link copied from one address doesn't open on another, but its key is the same
   everywhere as long as `ARKIV_DATA_KEY` is.
+- **Optional tuning, with defaults.** `MIN_INVOICE_USDT` (1), `RELAYER_MIN_WBT` (0.005),
+  `RELAYER_MAX_FEE_GWEI` (50), `RELAYER_FREE_PER_DAY` (500), `APP_URL` (the address a request came
+  to), and `RELAY_FEE_USDT` and `WITHDRAW_FEE_USDT` (0.05 each, used only when the WBT price can't
+  be read).

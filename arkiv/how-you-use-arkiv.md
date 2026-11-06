@@ -2,11 +2,18 @@
 
 ## Do filters, edit rights and expiry fit what the app does?
 
-**Filters.** The app asks four questions: "what are this invoice's details?", "what are this
-merchant's invoices?", "which invoices were sent to this customer?" and "does this invoice have a
-PDF?" So `registry`, `invoice_id`, `merchant` and `customer_lookup` are indexed. Encrypted columns
+**Filters.** The app asks seven questions: "what are this invoice's details?", "what are this
+merchant's invoices?", "which invoices were sent to this customer?", "does this invoice have a
+PDF?", "what is this merchant's business name, and which of its invoices are store orders?",
+"where do this merchant's webhooks go?" and "what was delivered to it lately?" So `registry`,
+`invoice_id`, `merchant` and `customer_lookup` are indexed, and the webhook records add `saved_at`,
+`sent_at`, `event_id` and `delivered`. Encrypted columns
 can't be filtered, which is why the customer lookup is a separate keyed hash of the customer's
 email or wallet address. `due_at` is indexed but not used yet.
+
+**Sorting.** Webhook settings are never edited. Each save writes a new record and the app reads
+the newest with `orderBy(desc("saved_at"))`, so a locked record still supports a setting that
+changes. Recent deliveries use the same sort on `sent_at`.
 
 **Who can edit.** Nobody. An invoice is a document, and changing it after a customer has seen it would
 break trust, so records are `readonly`. The first version of our plan stored status in Arkiv and
@@ -30,6 +37,11 @@ and that would be needed before real use. Webhook deliveries are the opposite ca
 | Queries by customer | A customer logs in by email or with a wallet and sees invoices to pay and past invoices |
 | A second entity type | An invoice with a PDF shows a download button. The file is on Swarm; the entity says where |
 | A third entity type | A subscription plan shows its name and description on the subscribe page, the merchant's Plans page and the customer's list, instead of a number and an address |
+| A fourth entity type | A merchant's webhook address and signing secret on the Developers page, encrypted, with the newest save winning |
+| A fifth entity type, with a short life | Recent deliveries on the Developers page: what reached the merchant's server, what failed, and a Resend button |
+| A public query by merchant | The New invoice and New plan forms fill in the business name from the merchant's last invoice. A store's unpaid order shows as "Awaiting payment", not as money owed |
+| Sorting | The newest webhook settings win, and deliveries list newest first |
+| An indexed flag | An event that already reached the merchant is found by `event_id` and `delivered`, so it is never sent twice |
 | Encrypted `bytes` column | Customers show as "Hidden" until the merchant signs in |
 | Creator filter | A stranger's fake entity with our schema name never appears on a pay page |
 | `readonly` | No visible control, but the details a customer saw can't change later |

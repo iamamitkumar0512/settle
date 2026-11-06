@@ -18,8 +18,9 @@ We haven't tested Settle with real merchants yet, so we can't claim demand.
 Live app: [ADD DEPLOYED URL]
 
 The app runs on Whitechain Sepolia and Arkiv's Rabdi testnet, using test USDT. A merchant logs in
-with an email or a wallet and needs no gas. A customer needs test USDT to pay. Current limits are
-in the [README](../README.md#current-limitations).
+with an email or a wallet and needs no gas. A new customer adds free test USDT with one button
+and pays with no gas either. A developer can add Settle to a website from the public docs page.
+Current limits are in the [README](../README.md#current-limitations).
 
 ## Will you keep building it after Mumbai?
 

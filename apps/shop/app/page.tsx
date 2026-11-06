@@ -1,4 +1,5 @@
 import { BuyButton } from "@/components/buy-button";
+import { ProductArt } from "@/components/product-art";
 import { storeIntegration } from "@/lib/integration";
 import { PRODUCTS } from "@/lib/products";
 
@@ -8,20 +9,22 @@ export default function StorePage() {
   return (
     <main>
       <section className="hero">
-        <h1>Tea worth waiting for the kettle.</h1>
-        <p>Pay with your email address. There&apos;s no wallet to install and nothing to set up.</p>
+        <span className="pill tone-paid">Pay with your email</span>
+        <h1 className="display">Tea worth waiting for the kettle.</h1>
+        <p>
+          Small-batch tea and clay cups from Mumbai. There&apos;s no wallet to install and nothing
+          to set up.
+        </p>
       </section>
 
       <section aria-label="Products" className="products">
         {PRODUCTS.map((product) => (
-          <article key={product.id} className="product">
-            <div className="swatch" style={{ background: product.tone }} aria-hidden="true">
-              <span>{product.name.charAt(0)}</span>
-            </div>
-            <h2>{product.name}</h2>
-            <p>{product.detail}</p>
+          <article key={product.id} className="card product">
+            <ProductArt id={product.id} tone={product.tone} />
+            <h2 className="display">{product.name}</h2>
+            <p className="product-detail">{product.detail}</p>
             <div className="price-row">
-              <span className="price">{product.price} USDT</span>
+              <span className="figure price">{product.price} USDT</span>
               <BuyButton product={product.id} name={product.name} />
             </div>
           </article>
@@ -29,7 +32,9 @@ export default function StorePage() {
       </section>
 
       <section aria-labelledby="integration" className="integration">
-        <h2 id="integration">How this store takes payment</h2>
+        <h2 id="integration" className="display">
+          How this store takes payment
+        </h2>
         <p>
           Chai Point is a separate website that installed <code>settle-pay</code>. These{" "}
           <strong>{lineCount} lines</strong> take a payment, and {webhookLineCount} more get it told
@@ -37,12 +42,12 @@ export default function StorePage() {
           lands in the merchant&apos;s Settle dashboard, where it can be refunded and exported.
         </p>
         {[...parts, webhook].map(({ file, purpose, lines }) => (
-          <figure key={file}>
+          <figure key={file} className="card">
             <figcaption>
               <span>{purpose}</span>
               <code>{file}</code>
             </figcaption>
-            <pre>
+            <pre className="well">
               <code>{lines.join("\n")}</code>
             </pre>
           </figure>

@@ -23,9 +23,9 @@ export function FinishSetup() {
   return (
     <div className="flex flex-col items-center gap-3 text-center">
       <h2 className="display text-xl">Finish setting up</h2>
-      <p className="text-muted">Your account needs a wallet to hold USDT. Settle creates it for you.</p>
+      <p className="text-muted">One more step and your account is ready.</p>
       <button type="button" className="btn btn-primary" disabled={busy} onClick={finish}>
-        {busy ? "One moment…" : "Create my wallet"}
+        {busy ? "One moment…" : "Set up my account"}
       </button>
       {failed && (
         <p role="alert" className="text-[13px]/[18px] text-late">

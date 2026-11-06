@@ -126,7 +126,7 @@ export async function buildInvoicesCsv(
       customer?.customerWallet ?? "",
       customer?.memo ?? "",
       customer?.receipt ?? "",
-      invoiceState(invoice, now).label,
+      invoiceState(invoice, now, customer?.isOrder).label,
       created ? utc(created.time) : "",
       utcSeconds(invoice.dueAt),
       isPaid ? utcSeconds(invoice.paidAt) : "",

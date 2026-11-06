@@ -1,11 +1,11 @@
-// Lists Settle's public records on Arkiv: invoices, the PDFs attached to them, and subscription
-// plans. Needs only a free access key:
+// Lists Settle's public records on Arkiv: invoices, the PDFs attached to them, subscription
+// plans, and recent webhook deliveries with the days each has left. Needs only a free access key:
 //   ARKIV_ACCESS_KEY=<key> node apps/web/scripts/arkiv-query.mjs [registry] [subscriptions]
 // Encrypted customer fields are returned as stored, so this script can't read them. A PDF's
 // Swarm reference is public, but the bytes behind it are encrypted too.
 import { createPublicClient } from "@arkiv-network/sdk";
 import { rabdi } from "@arkiv-network/sdk/chains";
-import { and, eq } from "@arkiv-network/sdk/query";
+import { and, desc, eq } from "@arkiv-network/sdk/query";
 import { addr, bytes, defineSchema, str, u256, u64 } from "@arkiv-network/sdk/schema";
 import { formatUnits, hexToString, http } from "viem";
 
@@ -47,6 +47,19 @@ const PlanRecord = defineSchema("settle_plan_v1", {
   public_details: bytes(),
 });
 
+// One try at sending a webhook. These expire after 7 days, so the log cleans itself up.
+const WebhookDelivery = defineSchema("settle_webhook_delivery_v1", {
+  registry: addr().indexed(),
+  merchant: addr().indexed(),
+  event_id: str().indexed(),
+  delivered: u64().indexed(),
+  sent_at: u64().indexed(),
+  event_type: str(),
+  invoice_id: u64(),
+  status_code: u64(),
+  attempts: u64(),
+});
+
 const accessKey = process.env.ARKIV_ACCESS_KEY;
 if (!accessKey) {
   console.error("Set ARKIV_ACCESS_KEY. Get a free key at https://hub.arkiv.network/access-keys");
@@ -78,6 +91,7 @@ const page = await client
   .from(InvoiceRecord)
   .where(and(eq("registry", addr(registry))))
   .createdBy(WRITER)
+  .orderBy(desc("invoice_id"))
   .limit(20)
   .fetch();
 
@@ -106,6 +120,7 @@ const filePage = await client
   .from(InvoiceFile)
   .where(and(eq("registry", addr(registry))))
   .createdBy(WRITER)
+  .orderBy(desc("invoice_id"))
   .limit(20)
   .fetch();
 
@@ -146,9 +161,38 @@ const plans = planPage.entities.map((row) => ({
   publicDetails: hexToString(row.public_details.value),
 }));
 
+const deliveryPage = await client
+  .select({
+    $expiresAt: true,
+    merchant: true,
+    event_type: true,
+    invoice_id: true,
+    delivered: true,
+    status_code: true,
+    sent_at: true,
+  })
+  .from(WebhookDelivery)
+  .where(and(eq("registry", addr(registry))))
+  .createdBy(WRITER)
+  .orderBy(desc("sent_at"))
+  .limit(10)
+  .fetch();
+const currentBlock = await client.getBlockNumber();
+
+const deliveries = deliveryPage.entities.map((row) => ({
+  merchant: row.merchant.value,
+  eventType: row.event_type.value,
+  invoiceId: String(row.invoice_id.value),
+  delivered: BigInt(row.delivered.value) === 1n,
+  statusCode: Number(row.status_code.value),
+  sentAt: new Date(Number(row.sent_at.value) * 1000).toISOString(),
+  // Rabdi makes a block every 2 seconds.
+  daysLeft: ((Number(BigInt(String(row.$expiresAt)) - currentBlock) * 2) / 86_400).toFixed(2),
+}));
+
 console.log(
   JSON.stringify(
-    { registry, subscriptions, writer: WRITER, count: rows.length, rows, files, plans },
+    { registry, subscriptions, writer: WRITER, count: rows.length, rows, files, plans, deliveries },
     null,
     2,
   ),

@@ -44,7 +44,7 @@ export function AccountMenu() {
     <div ref={menuRef} className="relative">
       <button
         type="button"
-        className={`btn max-w-[220px] ${session.email ? "" : "figure"}`}
+        className={`btn max-w-[150px] sm:max-w-[220px] ${session.email ? "" : "figure"}`}
         aria-expanded={open}
         onClick={() => setOpen((current) => !current)}
       >
@@ -69,7 +69,9 @@ export function AccountMenu() {
             </span>
           </div>
           <div>
-            <div className="text-muted">Wallet address</div>
+            <div className="text-muted">
+              {session.kind === "email" ? "Deposit address" : "Wallet address"}
+            </div>
             <div className="figure mt-0.5 text-[13px]/[18px] break-all">{address}</div>
           </div>
           <div className="flex gap-2">

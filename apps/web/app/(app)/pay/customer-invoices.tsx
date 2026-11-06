@@ -39,7 +39,7 @@ function InvoiceCard({
           {formatDate(new Date(Number(invoice.dueAt) * 1000))}
         </p>
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex w-full items-center justify-between gap-4 sm:w-auto">
         <span className="figure text-lg">{formatUsdt(invoice.amount)} USDT</span>
         {state.group !== "Cancelled" && (
           <Link
@@ -77,7 +77,7 @@ function InvoiceSections({
     <>
       {pending.length > 0 && (
         <section aria-label="To pay" className="flex flex-col gap-3">
-          <h2 className="display text-xl">To pay</h2>
+          <h2 className="display text-xl">Unpaid</h2>
           <ul className="flex flex-col gap-3">
             {pending.map((invoice) => (
               <InvoiceCard
@@ -157,7 +157,7 @@ export function CustomerInvoices() {
           known={known}
           emptyText={
             session.kind === "email"
-              ? "No invoices have been sent to this email or its wallet yet."
+              ? "No invoices have been sent to you yet."
               : "No invoices have been sent to this wallet yet."
           }
         />

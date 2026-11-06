@@ -45,11 +45,12 @@ export function reminderEmail(reminder: Parameters<typeof reminderMessage>[0]) {
   return { subject, text: `${text}\n\n${footer}`, html };
 }
 
-// Emails the invoice's customer. Returns false when there is nowhere to send it: the invoice
-// went to a wallet address, or its details were never saved.
+// Emails the invoice's customer. Returns false when there is nothing to send: the invoice went to
+// a wallet address, its details were never saved, or it is a store's order.
 export async function sendInvoiceReminder(invoice: Invoice, kind: ReminderKind, origin: string) {
   const contact = await readInvoiceContact(invoice.id);
-  if (!contact?.customerEmail) return false;
+  // A store's unpaid order is an abandoned cart, not a debt to chase.
+  if (!contact?.customerEmail || contact.isOrder) return false;
 
   await sendEmail({
     to: contact.customerEmail,

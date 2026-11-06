@@ -1,9 +1,9 @@
 "use client";
 
-import { QRCodeSVG } from "qrcode.react";
 import { useState, type FormEvent } from "react";
 import { formatUnits, isAddress, type Address, type Hash } from "viem";
 import { usePublicClient, useWriteContract } from "wagmi";
+import { AddUsdt } from "@/components/add-usdt";
 import { whitechainSepolia } from "@/lib/chains";
 import { usdtAbi, USDT_ADDRESS, USDT_DECIMALS } from "@/lib/contracts";
 import { explorerTxUrl, formatUsdt } from "@/lib/format";
@@ -15,22 +15,6 @@ import { useSession } from "@/lib/use-session";
 import { useSignedAction } from "@/lib/use-signed-action";
 import { useUsdtBalance } from "@/lib/use-usdt-balance";
 import { isInsufficientGas, isUserRejection } from "@/lib/wallet-errors";
-
-function CopyButton({ value }: { value: string }) {
-  const [copied, setCopied] = useState(false);
-
-  async function copy() {
-    await navigator.clipboard.writeText(value);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }
-
-  return (
-    <button type="button" className="btn" onClick={copy}>
-      {copied ? "Copied" : "Copy address"}
-    </button>
-  );
-}
 
 function Withdraw({ address, balance }: { address: Address; balance: bigint }) {
   const session = useSession();
@@ -199,7 +183,7 @@ function Withdraw({ address, balance }: { address: Address; balance: bigint }) {
         {buttonLabel}
       </button>
       <p className="text-[13px]/[18px] text-muted">
-        Sends on Whitechain only. Check the address: a transfer can&apos;t be undone.
+        Use an address on Whitechain, such as your exchange account. A transfer can&apos;t be undone.
       </p>
     </form>
   );
@@ -235,18 +219,7 @@ export function AccountPanel() {
 
       <section aria-label="Add money" className="card flex flex-col gap-4 p-6">
         <h2 className="display text-xl">Add money</h2>
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="rounded-[10px] bg-white p-2">
-            <QRCodeSVG value={address} size={112} title="Your wallet address" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-[13px]/[18px] text-muted">Send USDT on Whitechain to</div>
-            <div className="figure mt-0.5 text-[13px]/[18px] break-all">{address}</div>
-            <div className="mt-3">
-              <CopyButton value={address} />
-            </div>
-          </div>
-        </div>
+        <AddUsdt address={address} />
       </section>
 
       <section aria-label="Withdraw" className="card flex flex-col gap-4 p-6">

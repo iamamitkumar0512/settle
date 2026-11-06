@@ -189,7 +189,7 @@ function isCallbackUrl(text: string) {
   }
 }
 
-async function createInvoice(client: Client, input: NewOrder, dueAt: Date) {
+async function createInvoice(client: Client, input: NewOrder, dueAt: Date, kind?: "order") {
   const businessName = input.businessName ?? client.businessName;
   if (!businessName?.trim()) throw new SettleError("business_name_required");
 
@@ -214,6 +214,7 @@ async function createInvoice(client: Client, input: NewOrder, dueAt: Date) {
     memo: input.description ?? "",
     ...(receipt ? { receipt } : {}),
     ...(callbackUrl ? { callbackUrl } : {}),
+    ...(kind ? { kind } : {}),
   };
   const detailsSalt = randomBytes32();
   const request = {
@@ -267,7 +268,7 @@ export class Orders {
   /** Creates an order on your server. Hand its id to checkout.js in the browser. */
   async create(input: NewOrder): Promise<Order> {
     const dueAt = new Date(Date.now() + ORDER_DUE_MS);
-    const created = await createInvoice(this.#client, input, dueAt);
+    const created = await createInvoice(this.#client, input, dueAt, "order");
     return {
       id: String(created.id),
       amount: toDecimal(created.amount),

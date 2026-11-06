@@ -16,7 +16,7 @@ import { invoiceCalendarFile } from "@/lib/calendar";
 import { whitechainSepolia } from "@/lib/chains";
 import { checkoutOpenerOrigin, storeReturnUrl } from "@/lib/checkout";
 import { registry, usdtAbi, USDT_ADDRESS } from "@/lib/contracts";
-import { explorerTxUrl, formatDate, formatUsdt, shortAddress } from "@/lib/format";
+import { explorerTxUrl, formatDate, formatUsdt } from "@/lib/format";
 import { InvoiceStatus, type Invoice } from "@/lib/invoice";
 import { payUrl, usePayLinkKey } from "@/lib/pay-link";
 import { postJson, splitSignature } from "@/lib/relay-client";
@@ -89,7 +89,7 @@ function AddToCalendar({ invoice }: { invoice: Invoice }) {
   const now = useNow(60_000);
 
   // A store's order is paid at checkout, so there is nothing to remember.
-  if (isPending || details?.callbackUrl) return null;
+  if (isPending || details?.isOrder || details?.callbackUrl) return null;
   if (invoice.status !== InvoiceStatus.Open || invoice.dueAt <= now) return null;
 
   function download() {
@@ -143,11 +143,8 @@ function InvoiceSummary({ invoice }: { invoice: Invoice }) {
   return (
     <>
       <div>
-        <div className="text-muted">
-          {details?.merchantName ?? (
-            <span className="figure">{shortAddress(invoice.merchant)}</span>
-          )}{" "}
-          is requesting
+        <div className="min-h-[22px] text-muted">
+          {details?.merchantName ? `${details.merchantName} is requesting` : "Payment request"}
         </div>
         <div className="figure mt-1 text-5xl/[56px] tracking-tight md:text-[56px]/[64px]">
           {formatUsdt(invoice.amount)}
@@ -157,18 +154,12 @@ function InvoiceSummary({ invoice }: { invoice: Invoice }) {
       {details?.memo && <p className="border-t border-line pt-4">{details.memo}</p>}
       <InvoicePdf id={invoice.id} className="border-t border-line pt-4" />
       <div className="flex flex-wrap gap-8 border-t border-line pt-4">
-        {details && (
-          <div>
-            <div className="label">Paid to</div>
-            <div className="figure mt-1">{shortAddress(invoice.merchant)}</div>
-          </div>
-        )}
         <div>
-          <div className="label">Invoice</div>
+          <div className="label">{details?.isOrder ? "Order" : "Invoice"}</div>
           <div className="figure mt-1">#{String(invoice.id)}</div>
         </div>
         <div>
-          <div className="label">Due</div>
+          <div className="label">{details?.isOrder ? "Pay by" : "Due"}</div>
           <div className="mt-1">{formatDate(new Date(Number(invoice.dueAt) * 1000))}</div>
           <AddToCalendar invoice={invoice} />
         </div>
@@ -363,7 +354,7 @@ function PayCard({ invoice, onChanged, onPaid }: PayProps) {
           Pay the gas from my wallet in WBT instead
         </label>
       )}
-      {!hasFunds && session.kind === "email" ? (
+      {!hasFunds && (session.kind === "email" || quote.topUpAmount > 0n) ? (
         <AddUsdt
           address={payer}
           missing={invoice.amount - balance.data}
@@ -556,7 +547,7 @@ export function PayPanel() {
     return (
       <Message
         title="Couldn't load this invoice"
-        text="Whitechain didn't respond. Refresh the page to try again."
+        text="The network didn't respond. Refresh the page to try again."
       />
     );
   }

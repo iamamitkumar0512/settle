@@ -147,7 +147,7 @@ export function LoginCard({ title }: { title: string }) {
       </div>
       <WalletLogin />
       <p className="text-center text-[13px]/[18px] text-muted">
-        No gas needed either way. Settle covers network fees.
+        Your email is all you need. There&apos;s nothing to install.
       </p>
     </div>
   );

@@ -131,6 +131,7 @@ export function useSession() {
     const session = { message, signature, expiresAt };
     writeSession(wallet, session);
     queryClient.setQueryData(["wallet-session", wallet], session);
+    return { message, signature };
   }
 
   function logout() {

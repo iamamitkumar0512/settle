@@ -34,6 +34,8 @@ export type InvoiceDetails = {
   receipt?: string;
   // Where the store wants its customer sent after paying.
   callbackUrl?: string;
+  // Set on a store's order. An unpaid order is a cart, not money owed.
+  kind?: "order";
 };
 
 // Reads what a merchant typed as the email or the wallet address it is.
@@ -73,6 +75,7 @@ export function hashInvoiceDetails(details: InvoiceDetails, salt: Hex): Hex {
   const order = {
     ...(details.receipt ? { receipt: details.receipt } : {}),
     ...(details.callbackUrl ? { callbackUrl: details.callbackUrl } : {}),
+    ...(details.kind ? { kind: details.kind } : {}),
   };
   return keccak256(
     stringToHex(JSON.stringify({ merchantName, customerName, ...customer, memo, ...order, salt })),
@@ -100,7 +103,7 @@ export type Invoice = {
 
 export type InvoiceState = {
   label: string;
-  group: "Open" | "Paid" | "Refunded" | "Cancelled";
+  group: "Open" | "Paid" | "Refunded" | "Cancelled" | "Unpaid order";
   tone: string;
   isOverdue: boolean;
   // Still open and due within three days.
@@ -126,7 +129,7 @@ export function toInvoice(id: bigint, row: InvoiceRow): Invoice {
 
 const DUE_SOON_SECONDS = 3n * 24n * 60n * 60n;
 
-export function invoiceState(invoice: Invoice, now: bigint): InvoiceState {
+export function invoiceState(invoice: Invoice, now: bigint, isOrder = false): InvoiceState {
   if (invoice.status === InvoiceStatus.Cancelled) {
     return { label: "Cancelled", group: "Cancelled", tone: "", isOverdue: false, isDueSoon: false };
   }
@@ -136,6 +139,11 @@ export function invoiceState(invoice: Invoice, now: bigint): InvoiceState {
   if (invoice.status === InvoiceStatus.Refunded) {
     const label = invoice.refunded < invoice.amount ? "Partly refunded" : "Refunded";
     return { label, group: "Refunded", tone: "tone-refund", isOverdue: false, isDueSoon: false };
+  }
+  // Nobody owes this. A customer started checkout and may not finish it.
+  if (isOrder) {
+    const label = invoice.dueAt < now ? "Abandoned" : "Awaiting payment";
+    return { label, group: "Unpaid order", tone: "", isOverdue: false, isDueSoon: false };
   }
   if (invoice.dueAt < now) {
     return { label: "Overdue", group: "Open", tone: "tone-late", isOverdue: true, isDueSoon: false };

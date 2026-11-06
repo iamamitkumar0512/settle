@@ -127,6 +127,7 @@ type InvoiceRecordInput = PrivateDetails & {
   merchantName: string;
   memo: string;
   callbackUrl?: string;
+  kind?: "order";
 };
 
 function connection() {
@@ -150,14 +151,18 @@ function arkivReader() {
 
 function publicFrom(publicDetails: Hex) {
   try {
-    const { memo, callbackUrl } = JSON.parse(hexToString(publicDetails)) as Record<string, unknown>;
+    const { memo, callbackUrl, order } = JSON.parse(hexToString(publicDetails)) as Record<
+      string,
+      unknown
+    >;
     return {
       memo: typeof memo === "string" ? memo : "",
+      isOrder: order === true,
       // Checked again on the way out: this is where a paying customer gets sent.
       ...(typeof callbackUrl === "string" && isValidCallbackUrl(callbackUrl) ? { callbackUrl } : {}),
     };
   } catch {
-    return { memo: "" };
+    return { memo: "", isOrder: false };
   }
 }
 
@@ -222,6 +227,7 @@ export async function readInvoiceContact(id: bigint) {
     customerName: details?.customerName ?? "",
     customerEmail: details?.customerEmail ?? "",
     receipt: details?.receipt ?? "",
+    isOrder: publicFrom(row.public_details.value).isOrder,
   };
 }
 
@@ -355,6 +361,35 @@ export async function readPlanRecords() {
   }
 }
 
+// What anyone can see about a merchant: the name on their latest invoice, and which of their
+// invoices are store orders. Both are public already, one record at a time.
+export async function readMerchantProfile(merchant: Address) {
+  const reader = arkivReader();
+  let businessName = "";
+  let latest = 0n;
+  const orderIds: string[] = [];
+
+  for (let offset = 0; ; offset += PAGE_SIZE) {
+    const page = await reader
+      .select({ invoice_id: true, merchant_name: true, public_details: true })
+      .from(InvoiceRecord)
+      .where(and(eq("registry", addr(REGISTRY_ADDRESS)), eq("merchant", addr(merchant))))
+      .createdBy(writerAccount().address)
+      .limit(PAGE_SIZE)
+      .offset(offset)
+      .fetch();
+    for (const row of page.entities) {
+      const id = BigInt(row.invoice_id.value);
+      if (publicFrom(row.public_details.value).isOrder) orderIds.push(String(id));
+      if (id > latest) {
+        latest = id;
+        businessName = row.merchant_name.value;
+      }
+    }
+    if (page.entities.length < PAGE_SIZE) return { businessName, orderIds };
+  }
+}
+
 export async function readMerchantInvoiceIds(merchant: Address) {
   const ids: bigint[] = [];
   const reader = arkivReader();
@@ -413,6 +448,7 @@ export async function readMerchantCustomers(merchant: Address, id?: bigint) {
         customerEmail: details?.customerEmail ?? "",
         customerWallet: details?.customerWallet ?? "",
         receipt: details?.receipt ?? "",
+        isOrder: publicFrom(row.public_details.value).isOrder,
         linkKey: payLinkKey(invoiceId),
       });
     }
@@ -465,6 +501,7 @@ export async function readCustomerInvoices(customer: BilledTo) {
           id: String(id),
           merchantName: row.merchant_name.value,
           memo: memoFrom(row.public_details.value),
+          isOrder: publicFrom(row.public_details.value).isOrder,
         });
       }
     }
@@ -503,7 +540,7 @@ async function writer() {
 const NO_CUSTOMER = "none";
 
 async function createRecord(input: InvoiceRecordInput) {
-  const { id, merchant, amount, dueAt, merchantName, memo, callbackUrl } = input;
+  const { id, merchant, amount, dueAt, merchantName, memo, callbackUrl, kind } = input;
   const { customerName, customerEmail, customerWallet, receipt, salt } = input;
   const { envelope, mediaType } = await encryptPrivateDetails(id, {
     customerName,
@@ -530,7 +567,13 @@ async function createRecord(input: InvoiceRecordInput) {
       amount_usdt: u256(amount),
       merchant_name: str(merchantName),
       public_details: bytes(
-        stringToBytes(JSON.stringify({ memo, ...(callbackUrl ? { callbackUrl } : {}) })),
+        stringToBytes(
+          JSON.stringify({
+            memo,
+            ...(callbackUrl ? { callbackUrl } : {}),
+            ...(kind === "order" ? { order: true } : {}),
+          }),
+        ),
       ),
       private_details: bytes(envelope),
       private_media_type: str(mediaType),

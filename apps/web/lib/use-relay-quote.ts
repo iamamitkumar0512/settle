@@ -10,6 +10,7 @@ type RelayQuote = {
   chargeFee: string;
   canAttachPdf: boolean;
   canSendReminders: boolean;
+  topUpAmount: string;
 };
 
 export function useRelayQuote() {
@@ -27,5 +28,6 @@ export function useRelayQuote() {
     chargeFee: data ? BigInt(data.chargeFee) : 0n,
     canAttachPdf: data?.canAttachPdf ?? false,
     canSendReminders: data?.canSendReminders ?? false,
+    topUpAmount: data ? BigInt(data.topUpAmount) : 0n,
   };
 }

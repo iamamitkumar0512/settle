@@ -10,6 +10,7 @@ import { postJson } from "@/lib/relay-client";
 import { hashPlanDetails, PLAN_LIMITS, type PlanDetails } from "@/lib/subscription";
 import { planRequest } from "@/lib/typed-data";
 import { useRelayQuote } from "@/lib/use-relay-quote";
+import { useMerchantProfile } from "@/lib/use-merchant-profile";
 import { useSession } from "@/lib/use-session";
 import { useSignedAction } from "@/lib/use-signed-action";
 
@@ -103,7 +104,9 @@ export function NewPlanForm() {
   const action = useSignedAction();
   const quote = useRelayQuote();
   const queryClient = useQueryClient();
-  const [merchantName, setMerchantName] = useState("");
+  const savedName = useMerchantProfile(session.address).businessName;
+  const [typedName, setTypedName] = useState<string>();
+  const merchantName = typedName ?? savedName;
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [amountText, setAmountText] = useState("");
@@ -190,7 +193,7 @@ export function NewPlanForm() {
               maxLength={MAX_NAME}
               aria-invalid={nameError && !merchantName.trim() ? true : undefined}
               value={merchantName}
-              onChange={(event) => setMerchantName(event.target.value)}
+              onChange={(event) => setTypedName(event.target.value)}
             />
           </label>
           <label className="field">

@@ -14,7 +14,7 @@ import { Message } from "@/components/message";
 import { SwitchNetwork } from "@/components/switch-network";
 import { whitechainSepolia } from "@/lib/chains";
 import { subscriptions, usdtAbi, USDT_ADDRESS } from "@/lib/contracts";
-import { formatDateTime, formatUsdt, periodLabel, shortAddress } from "@/lib/format";
+import { formatDateTime, formatUsdt, periodLabel } from "@/lib/format";
 import { newSalt } from "@/lib/invoice";
 import { postJson, splitSignature } from "@/lib/relay-client";
 import { toSubscription, type Plan } from "@/lib/subscription";
@@ -39,11 +39,14 @@ function PlanSummary({ plan }: { plan: Plan }) {
   return (
     <>
       <div>
-        <div className="text-muted">
-          {details?.merchantName ?? (
-            <span className="figure">{shortAddress(plan.merchant)}</span>
-          )}{" "}
-          offers {details ? <span className="text-ink">{details.name}</span> : "a subscription"} for
+        <div className="min-h-[22px] text-muted">
+          {details ? (
+            <>
+              {details.merchantName} offers <span className="text-ink">{details.name}</span> for
+            </>
+          ) : (
+            "Subscription"
+          )}
         </div>
         <div className="figure mt-1 text-5xl/[56px] tracking-tight md:text-[56px]/[64px]">
           {formatUsdt(plan.amount)}
@@ -52,10 +55,6 @@ function PlanSummary({ plan }: { plan: Plan }) {
       </div>
       {details?.description && <p className="border-t border-line pt-4">{details.description}</p>}
       <div className="flex flex-wrap gap-8 border-t border-line pt-4">
-        <div>
-          <div className="label">Paid to</div>
-          <div className="figure mt-1">{shortAddress(plan.merchant)}</div>
-        </div>
         <div>
           <div className="label">Plan</div>
           <div className="figure mt-1">#{String(plan.id)}</div>
@@ -263,7 +262,7 @@ export function SubscribePanel() {
     return (
       <Message
         title="Couldn't load this plan"
-        text="Whitechain didn't respond. Refresh the page to try again."
+        text="The network didn't respond. Refresh the page to try again."
       />
     );
   }

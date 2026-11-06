@@ -187,8 +187,12 @@ Node 20 or later. The SDK refuses to run in a browser, so your secret can't end 
 ## Try it
 
 ```bash
-SETTLE_URL=https://<your Settle> SETTLE_KEY_ID=0x... SETTLE_KEY_SECRET=... pnpm --filter settle-pay example
+SETTLE_BASE_URL=https://<your Settle> SETTLE_KEY_ID=0x... SETTLE_KEY_SECRET=... pnpm --filter settle-pay example
 ```
+
+It creates an order for 1.00 USDT, waits for you to pay it, refunds 0.40 and prints each step. If
+`apps/shop/.env` is filled in, it reuses those settings and the command is just
+`pnpm --filter settle-pay example`.
 
 [`apps/shop`](../../apps/shop) is a complete store built on this package, in 22 lines of Settle code
 and 6 more for webhooks.

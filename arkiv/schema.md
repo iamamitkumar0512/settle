@@ -20,7 +20,7 @@ There are three entity types, all defined in
 | `customer_lookup` | `str` | Yes | Keyed hash | Finds a customer's invoices without storing a readable email or wallet address. `none` for a store order that names no customer |
 | `amount_usdt` | `u256` | No | Yes | Amount in USDT, 6 decimals |
 | `merchant_name` | `str` | No | Yes | Business name shown to customers, up to 128 bytes |
-| `public_details` | `bytes` | No | Yes | JSON: `{ memo, callbackUrl? }`. `callbackUrl` is where a store wants its customer sent after paying |
+| `public_details` | `bytes` | No | Yes | JSON: `{ memo, callbackUrl?, order? }`. `callbackUrl` is where a store wants its customer sent after paying. `order` marks a store's order, which is a cart and not money owed until it is paid |
 | `private_details` | `bytes` | No | Encrypted | `{ invoiceId, customerName, customerEmail, customerWallet, receipt?, salt }`. `receipt` is a store's own order number |
 | `private_media_type` | `str` | No | Yes | Format of the encrypted data |
 
@@ -98,6 +98,10 @@ The address and the secret are never in it.
 | The PDF attached to one invoice | `registry`, `invoice_id`, creator | Pay page, invoice page |
 | Does this plan have a record? | `contract`, `plan_id`, creator | Saving plan details |
 | Every plan's name and description | `contract`, creator | Plans page, subscribe page, a customer's subscriptions |
+| A merchant's business name and store orders | `registry`, `merchant`, creator | New invoice and plan forms, dashboard |
+| A merchant's newest webhook settings | `registry`, `merchant`, creator, newest `saved_at` | Developers page, sending webhooks |
+| A merchant's recent deliveries | `registry`, `merchant`, creator, newest `sent_at`, limit 20 | Developers page |
+| Was this event already delivered? | `registry`, `merchant`, `event_id`, `delivered`, creator | Sending webhooks |
 
 `due_at` is indexed for overdue queries, but the app doesn't query it yet. Overdue status comes from
 the contract's due date.

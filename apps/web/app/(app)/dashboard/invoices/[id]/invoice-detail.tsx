@@ -132,10 +132,11 @@ function Timeline({ invoice }: { invoice: Invoice }) {
 
 function Detail({ invoice, onChanged }: { invoice: Invoice; onChanged: () => Promise<unknown> }) {
   const [now] = useState(() => BigInt(Math.floor(Date.now() / 1000)));
-  const state = invoiceState(invoice, now);
+  const { data: details } = useInvoiceDetails(invoice.id);
+  const isOrder = details?.isOrder === true;
+  const state = invoiceState(invoice, now, isOrder);
   const isPaid = invoice.status === InvoiceStatus.Paid || invoice.status === InvoiceStatus.Refunded;
   const merchant = useMerchantCustomers();
-  const { data: details } = useInvoiceDetails(invoice.id);
   const customer = merchant.customers.get(String(invoice.id));
   const fee = useInvoiceRecords(invoice).data?.paid?.fee ?? 0n;
 
@@ -145,7 +146,7 @@ function Detail({ invoice, onChanged }: { invoice: Invoice; onChanged: () => Pro
         <section className="card p-6">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="display text-[32px]/10">
-              Invoice <span className="figure">#{String(invoice.id)}</span>
+              {isOrder ? "Order" : "Invoice"} <span className="figure">#{String(invoice.id)}</span>
             </h1>
             <span className={`pill ${state.tone}`}>{state.label}</span>
           </div>
@@ -162,10 +163,10 @@ function Detail({ invoice, onChanged }: { invoice: Invoice; onChanged: () => Pro
             </p>
           )}
           <p className="mt-1 mb-5 text-muted">
-            Due {formatDate(new Date(Number(invoice.dueAt) * 1000))}
+            {!isOrder && `Due ${formatDate(new Date(Number(invoice.dueAt) * 1000))}`}
             {isPaid && (
               <>
-                {" · "}
+                {!isOrder && " · "}
                 <Link href={`/pay/${invoice.id}/receipt`} className="text-accent-text">
                   Customer receipt
                 </Link>
@@ -174,7 +175,7 @@ function Detail({ invoice, onChanged }: { invoice: Invoice; onChanged: () => Pro
           </p>
           <InvoicePdf
             id={invoice.id}
-            canAttach={invoice.status === InvoiceStatus.Open}
+            canAttach={invoice.status === InvoiceStatus.Open && !isOrder}
             className="mb-5"
           />
           <div className="grid grid-cols-1 gap-5 border-t border-line pt-5 md:grid-cols-3">
@@ -185,8 +186,8 @@ function Detail({ invoice, onChanged }: { invoice: Invoice; onChanged: () => Pro
               tone={invoice.refunded > 0n ? "text-refund" : undefined}
             />
             <Stat
-              label="You kept"
-              value={isPaid ? formatUsdt(invoice.amount - invoice.refunded - fee) : "0.00"}
+              label="You received"
+              value={isPaid ? formatUsdt(invoice.amount - invoice.refunded - fee) : "—"}
             />
           </div>
         </section>
@@ -202,6 +203,7 @@ function Detail({ invoice, onChanged }: { invoice: Invoice; onChanged: () => Pro
               memo: customer?.memo ?? details?.memo,
             }}
             isOverdue={state.isOverdue}
+            isOrder={isOrder}
             onChanged={onChanged}
           />
         )}
@@ -209,7 +211,9 @@ function Detail({ invoice, onChanged }: { invoice: Invoice; onChanged: () => Pro
         {invoice.status === InvoiceStatus.Cancelled && (
           <>
             <h2 className="display text-xl">Cancelled</h2>
-            <p className="text-muted">This invoice can no longer be paid.</p>
+            <p className="text-muted">
+              This {isOrder ? "order" : "invoice"} can no longer be paid.
+            </p>
           </>
         )}
       </aside>

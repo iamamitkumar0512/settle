@@ -13,15 +13,19 @@ import { PaymentReminders } from "./payment-reminders";
 import { SwitchNetwork } from "./switch-network";
 
 const NAV = [
-  { href: "/dashboard", label: "Invoices" },
-  { href: "/plans", label: "Plans" },
-  { href: "/pay", label: "To pay" },
-  { href: "/account", label: "Account" },
-  { href: "/developers", label: "Developers" },
+  { href: "/dashboard", label: "Invoices", icon: "M7 3h7l4 4v14H7zM14 3v4h4M10 12h5M10 16h5" },
+  { href: "/plans", label: "Plans", icon: "M4 12a8 8 0 0 1 14-5l2 2M20 12a8 8 0 0 1-14 5l-2-2M20 4v5h-5M4 20v-5h5" },
+  { href: "/pay", label: "To pay", icon: "M3 7h18v11H3zM3 11h18M7 15h3" },
+  { href: "/account", label: "Account", icon: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM5 20a7 7 0 0 1 14 0" },
+  { href: "/developers", label: "Developers", icon: "M9 8l-4 4 4 4M15 8l4 4-4 4" },
 ];
 
+function isCurrent(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 // How many invoices this account still has to pay, coloured when one is overdue or due soon.
-function ToPayCount() {
+function ToPayCount({ compact }: { compact?: boolean }) {
   const { open, urgent } = usePendingInvoices();
   if (open.length === 0) return null;
 
@@ -31,7 +35,9 @@ function ToPayCount() {
       ? "tone-due"
       : "";
   return (
-    <span className={`pill ml-2 before:hidden ${tone}`}>
+    <span
+      className={`pill before:hidden ${tone} ${compact ? "absolute -top-1 left-1/2 ml-1 h-[18px] px-1.5 text-[11px]" : "ml-2"}`}
+    >
       {open.length}
       <span className="sr-only"> unpaid</span>
     </span>
@@ -40,15 +46,15 @@ function ToPayCount() {
 
 function NavLinks({ pathname }: { pathname: string }) {
   return (
-    <nav aria-label="Main" className="flex gap-1 overflow-x-auto">
+    <nav aria-label="Main" className="hidden gap-1 lg:flex">
       {NAV.map(({ href, label }) => {
-        const current = pathname === href || pathname.startsWith(`${href}/`);
+        const current = isCurrent(pathname, href);
         return (
           <Link
             key={href}
             href={href}
             aria-current={current ? "page" : undefined}
-            className={`inline-flex h-10 items-center rounded-lg px-3 font-medium whitespace-nowrap ${
+            className={`inline-flex h-10 items-center rounded-lg px-3 font-medium whitespace-nowrap hover:text-ink ${
               current ? "bg-raised text-ink" : "text-muted"
             }`}
           >
@@ -66,9 +72,56 @@ function NavLinks({ pathname }: { pathname: string }) {
   );
 }
 
+function TabBar({ pathname }: { pathname: string }) {
+  return (
+    <nav
+      aria-label="Main on phones"
+      className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-line bg-bg pb-[env(safe-area-inset-bottom)] lg:hidden"
+    >
+      {NAV.map(({ href, label, icon }) => {
+        const current = isCurrent(pathname, href);
+        return (
+          <Link
+            key={href}
+            href={href}
+            aria-current={current ? "page" : undefined}
+            className={`relative flex h-14 flex-col items-center justify-center gap-0.5 text-[11px]/[14px] font-medium ${
+              current ? "text-accent-text" : "text-muted"
+            }`}
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d={icon} />
+            </svg>
+            {label}
+            {href === "/pay" && (
+              <Suspense fallback={null}>
+                <ToPayCount compact />
+              </Suspense>
+            )}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
 // The current page is only known at request time, so the links render first without it.
 function Nav() {
   return <NavLinks pathname={usePathname()} />;
+}
+
+function PhoneNav() {
+  return <TabBar pathname={usePathname()} />;
 }
 
 function Gate({ children }: { children: ReactNode }) {
@@ -112,19 +165,23 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <>
       <header className="border-b border-line">
-        <div className="mx-auto flex min-h-[68px] max-w-[1376px] flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2 md:px-8">
+        <div className="mx-auto flex h-[68px] max-w-[1376px] items-center gap-3 px-4 md:gap-6 md:px-8">
           <Logo />
+          <span className="pill tone-due">Test mode</span>
           <Suspense fallback={<NavLinks pathname="" />}>
             <Nav />
           </Suspense>
-          <div className="ml-auto">
+          <div className="ml-auto min-w-0">
             <AccountMenu />
           </div>
         </div>
       </header>
-      <div className="flex flex-1 flex-col px-4 py-8 md:px-8">
+      <div className="flex flex-1 flex-col px-4 pt-6 pb-24 md:px-8 lg:py-8">
         <Gate>{children}</Gate>
       </div>
+      <Suspense fallback={<TabBar pathname="" />}>
+        <PhoneNav />
+      </Suspense>
     </>
   );
 }

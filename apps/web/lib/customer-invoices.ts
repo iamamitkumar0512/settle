@@ -6,6 +6,7 @@ export type CustomerInvoice = {
   id: string;
   merchantName: string;
   memo: string;
+  isOrder: boolean;
 };
 
 // An invoice's saved details as its merchant sees them.
@@ -18,6 +19,7 @@ export type InvoiceCustomer = {
   customerWallet: string;
   // The store's own order number, when a store created the invoice as an order.
   receipt: string;
+  isOrder: boolean;
   // Goes on the end of the pay link, so its holder can open the invoice's PDF.
   linkKey: string;
 };

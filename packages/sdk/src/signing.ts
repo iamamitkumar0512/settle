@@ -108,6 +108,8 @@ export type InvoiceDetails = {
   receipt?: string;
   /** Where the store wants its customer sent after paying. */
   callbackUrl?: string;
+  /** Set on a store's order. An unpaid order is a cart, not money owed. */
+  kind?: "order";
 };
 
 // An invoice goes to an email address or to a wallet address. The other field stays empty.
@@ -129,6 +131,7 @@ export function hashInvoiceDetails(details: InvoiceDetails, salt: Hex): Hex {
   const order = {
     ...(details.receipt ? { receipt: details.receipt } : {}),
     ...(details.callbackUrl ? { callbackUrl: details.callbackUrl } : {}),
+    ...(details.kind ? { kind: details.kind } : {}),
   };
   return keccak256(
     stringToHex(JSON.stringify({ merchantName, customerName, ...customer, memo, ...order, salt })),

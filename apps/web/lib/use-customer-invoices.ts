@@ -56,7 +56,7 @@ export function usePendingInvoices() {
     .map((invoice) => ({
       invoice,
       merchantName: known.get(String(invoice.id))?.merchantName,
-      state: invoiceState(invoice, now),
+      state: invoiceState(invoice, now, known.get(String(invoice.id))?.isOrder),
     }))
     .filter(({ state }) => state.group === "Open")
     .sort((a, b) => Number(a.invoice.dueAt - b.invoice.dueAt));

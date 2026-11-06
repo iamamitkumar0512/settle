@@ -20,7 +20,7 @@ const spaceGrotesk = Space_Grotesk({
 
 export const metadata: Metadata = {
   title: "Settle",
-  description: "Stablecoin invoicing on Whitechain.",
+  description: "The payment gateway for USDT on Whitechain.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

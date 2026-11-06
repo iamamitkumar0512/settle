@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { zeroAddress } from "viem";
-import { formatDate, formatUsdt, shortAddress } from "@/lib/format";
+import { formatDate, formatUsdt } from "@/lib/format";
 import { buildInvoicesCsv } from "@/lib/invoices-csv";
 import { logsClient } from "@/lib/logs-client";
 import {
@@ -15,6 +15,7 @@ import { customerContact, type InvoiceCustomer } from "@/lib/customer-invoices";
 import { payUrl } from "@/lib/pay-link";
 import { useMerchantCustomers } from "@/lib/use-merchant-customers";
 import { useMerchantInvoices } from "@/lib/use-merchant-invoices";
+import { useMerchantProfile } from "@/lib/use-merchant-profile";
 import { useMerchantPayments, type MerchantPayment } from "@/lib/use-merchant-payments";
 import { useSession } from "@/lib/use-session";
 
@@ -80,7 +81,7 @@ function Summary({
         }
         detail={
           payments
-            ? `USDT of gas on ${relayed.length} gasless ${relayed.length === 1 ? "payment" : "payments"}`
+            ? `USDT on ${relayed.length} ${relayed.length === 1 ? "payment" : "payments"}`
             : "Loading…"
         }
       />
@@ -165,24 +166,35 @@ function ExportButton({
   );
 }
 
-function InvoiceRow({
-  invoice,
-  state,
-  customer,
-  payment,
-  signedIn,
-}: {
+type RowProps = {
   invoice: Invoice;
   state: InvoiceState;
   customer?: InvoiceCustomer;
   payment?: MerchantPayment;
   signedIn: boolean;
-}) {
-  const isPaid = invoice.payer !== zeroAddress;
-  const notes = [
+  isOrder: boolean;
+};
+
+function customerName(customer: InvoiceCustomer | undefined, isOrder: boolean) {
+  return customer?.customerName || (isOrder ? "Store order" : "—");
+}
+
+// The customer's contact, or a store's own order number when it has no named customer.
+function customerDetail(customer: InvoiceCustomer | undefined) {
+  if (!customer) return "";
+  return customerContact(customer) || customer.receipt;
+}
+
+function rowNotes(invoice: Invoice, payment?: MerchantPayment) {
+  return [
     invoice.refunded > 0n && `${formatUsdt(invoice.refunded)} refunded`,
     payment && (payment.gasless ? `${formatUsdt(payment.fee)} network fee` : "no fee"),
   ].filter(Boolean);
+}
+
+function InvoiceRow({ invoice, state, customer, payment, signedIn, isOrder }: RowProps) {
+  const isPaid = invoice.payer !== zeroAddress;
+  const notes = rowNotes(invoice, payment);
 
   return (
     <tr>
@@ -197,30 +209,22 @@ function InvoiceRow({
       <td>
         {signedIn ? (
           <>
-            <div>{customer?.customerName || "—"}</div>
-            {customer && customerContact(customer) && (
-              <div className="text-[13px]/[18px] text-muted">{customerContact(customer)}</div>
-            )}
-            {customer?.receipt && (
-              <div className="text-[13px]/[18px] text-muted">Order {customer.receipt}</div>
+            <div>{customerName(customer, isOrder)}</div>
+            {customerDetail(customer) && (
+              <div className="text-[13px]/[18px] text-muted">{customerDetail(customer)}</div>
             )}
           </>
         ) : (
           <span className="text-muted">Hidden</span>
         )}
       </td>
-      <td>{formatDate(new Date(Number(invoice.dueAt) * 1000))}</td>
+      <td>{isOrder ? "—" : formatDate(new Date(Number(invoice.dueAt) * 1000))}</td>
       <td>
         <span className={`pill ${state.tone}`}>{state.label}</span>
       </td>
       <td>
         {isPaid ? (
-          <>
-            <div className="figure">{shortAddress(invoice.payer)}</div>
-            <div className="text-[13px]/[18px] text-muted">
-              {formatDate(new Date(Number(invoice.paidAt) * 1000))}
-            </div>
-          </>
+          formatDate(new Date(Number(invoice.paidAt) * 1000))
         ) : (
           <span className="text-muted">Not paid</span>
         )}
@@ -232,14 +236,55 @@ function InvoiceRow({
         </div>
       </td>
       <td className="text-right">
-        {state.group === "Open" && <CopyLinkButton id={invoice.id} linkKey={customer?.linkKey} />}
-        {state.group !== "Open" && (
-          <Link href={`/dashboard/invoices/${invoice.id}`} className="btn min-h-[38px]">
-            View
-          </Link>
-        )}
+        <RowAction invoice={invoice} state={state} customer={customer} />
       </td>
     </tr>
+  );
+}
+
+// The same row on a phone, where a table can't fit.
+function InvoiceCard({ invoice, state, customer, payment, signedIn, isOrder }: RowProps) {
+  const notes = rowNotes(invoice, payment);
+  const named = customerName(customer, isOrder);
+  const who = signedIn && named !== "—" ? named : "";
+  const due = formatDate(new Date(Number(invoice.dueAt) * 1000));
+
+  return (
+    <li className="flex flex-col gap-3 border-t border-line px-5 py-4">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <Link href={`/dashboard/invoices/${invoice.id}`} className="figure text-accent-text">
+            #{String(invoice.id)}
+          </Link>
+          {customer?.memo && <div className="mt-0.5 font-medium">{customer.memo}</div>}
+          <div className="text-[13px]/[18px] text-muted">
+            {[who, customerDetail(customer), !isOrder && `Due ${due}`].filter(Boolean).join(" · ")}
+          </div>
+        </div>
+        <div className="shrink-0 text-right">
+          <div className="figure">{formatUsdt(invoice.amount)}</div>
+          <div className="text-[13px]/[18px] text-muted">USDT</div>
+        </div>
+      </div>
+      {notes.length > 0 && <div className="text-[13px]/[18px] text-muted">{notes.join(" · ")}</div>}
+      <div className="flex items-center justify-between gap-3">
+        <span className={`pill ${state.tone}`}>{state.label}</span>
+        <RowAction invoice={invoice} state={state} customer={customer} />
+      </div>
+    </li>
+  );
+}
+
+function RowAction({
+  invoice,
+  state,
+  customer,
+}: Pick<RowProps, "invoice" | "state" | "customer">) {
+  if (state.group === "Open") return <CopyLinkButton id={invoice.id} linkKey={customer?.linkKey} />;
+  return (
+    <Link href={`/dashboard/invoices/${invoice.id}`} className="btn min-h-[38px]">
+      View
+    </Link>
   );
 }
 
@@ -265,6 +310,7 @@ function InvoiceList() {
   const session = useSession();
   const { address } = session;
   const merchant = useMerchantCustomers();
+  const { orders } = useMerchantProfile(address);
   const { invoices, isLoading, isError, retry } = useMerchantInvoices(address);
   const payments = useMerchantPayments(
     address,
@@ -278,7 +324,7 @@ function InvoiceList() {
     return (
       <section role="alert" className="card flex flex-col items-center gap-3 px-6 py-16 text-center">
         <h2 className="display text-xl">Couldn&apos;t load your invoices</h2>
-        <p className="text-muted">Whitechain didn&apos;t respond. Your invoices are safe on-chain.</p>
+        <p className="text-muted">The network didn&apos;t respond. Your invoices are safe.</p>
         <button type="button" className="btn" onClick={retry}>
           Try again
         </button>
@@ -306,10 +352,10 @@ function InvoiceList() {
     );
   }
 
-  const rows = invoices.map((invoice) => ({
-    invoice,
-    state: invoiceState(invoice, now),
-  }));
+  const rows = invoices.map((invoice) => {
+    const isOrder = orders.has(String(invoice.id));
+    return { invoice, isOrder, state: invoiceState(invoice, now, isOrder) };
+  });
   const term = search.trim().toLowerCase();
   const visible = rows.filter(({ invoice, state }) => {
     if (filter !== "All" && state.group !== filter) return false;
@@ -367,7 +413,21 @@ function InvoiceList() {
             {term ? "No invoices match your search." : `No ${filter.toLowerCase()} invoices.`}
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <ul aria-label="Your invoices" className="md:hidden">
+            {visible.map(({ invoice, state, isOrder }) => (
+              <InvoiceCard
+                key={String(invoice.id)}
+                invoice={invoice}
+                state={state}
+                isOrder={isOrder}
+                customer={merchant.customers.get(String(invoice.id))}
+                payment={payments?.get(String(invoice.id))}
+                signedIn={merchant.isUnlocked}
+              />
+            ))}
+          </ul>
+          <div className="hidden overflow-x-auto md:block">
             <table className="data-table">
               <caption className="sr-only">Your invoices, newest first</caption>
               <thead>
@@ -376,17 +436,18 @@ function InvoiceList() {
                   <th scope="col" className="label">Customer</th>
                   <th scope="col" className="label">Due</th>
                   <th scope="col" className="label">Status</th>
-                  <th scope="col" className="label">Paid by</th>
+                  <th scope="col" className="label">Paid</th>
                   <th scope="col" className="label text-right">Amount</th>
                   <th scope="col"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody>
-                {visible.map(({ invoice, state }) => (
+                {visible.map(({ invoice, state, isOrder }) => (
                   <InvoiceRow
                     key={String(invoice.id)}
                     invoice={invoice}
                     state={state}
+                    isOrder={isOrder}
                     customer={merchant.customers.get(String(invoice.id))}
                     payment={payments?.get(String(invoice.id))}
                     signedIn={merchant.isUnlocked}
@@ -395,6 +456,7 @@ function InvoiceList() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </section>
     </>

@@ -35,7 +35,7 @@ export function BuyButton({ product, name }: { product: string; name: string }) 
 
   return (
     <>
-      <button type="button" className="buy" onClick={buy} aria-label={`Buy ${name}`}>
+      <button type="button" className="btn btn-primary" onClick={buy} aria-label={`Buy ${name}`}>
         Buy
       </button>
       {problem && (

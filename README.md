@@ -1,19 +1,42 @@
 # Settle
 
-Settle lets a business get paid in USDT on Whitechain with invoices, pay links and refunds, and
-lets the customer pay without holding WBT for gas.
+Settle is the payment gateway for USDT on Whitechain. A store adds it to its website the way it
+would add a card gateway, and anyone else can create an invoice or a subscription plan in the app.
+Either way the customer pays with an email address, and needs no wallet and no gas.
 
 <!-- Amit: add the two links, and remove this comment. -->
 **Live app:** [ADD DEPLOYED URL] · **Demo video:** [ADD VIDEO LINK]
 
-> **Status:** built for ETHGlobal Mumbai 2026. Both contracts are live and verified on Whitechain
-> Sepolia, and invoices have been created, paid and refunded there without the customer or the
-> merchant holding gas. Built: email or wallet login, the merchant dashboard, pay page, receipts,
-> refunds, CSV export, the relayer, Arkiv records, PDF invoices on Swarm, an SDK and a demo store.
-> Subscriptions are built too: plans, a subscribe page, collection of due payments and cancel.
-> Reminders are built: in the app for the customer, a Remind button for the merchant and a calendar
-> file, with automatic email as an extra that needs an email key. See
+> **Status:** built for ETHGlobal Mumbai 2026. All three contracts are live and verified on
+> Whitechain Sepolia, and invoices have been created, paid and refunded there without the customer
+> or the merchant holding gas. Built: an SDK with Settle Checkout and signed webhooks, a separate
+> demo store, email or wallet login, the merchant dashboard, pay page, receipts, refunds,
+> subscriptions, reminders, CSV export, the relayer, Arkiv records and PDF invoices on Swarm. See
 > [Current limitations](#current-limitations).
+
+## Try it in a few minutes
+
+1. **Buy from a store.** Open the demo store, press Buy and pay with your email address. A new
+   account gets free test USDT with one button. You come back to the store with the order confirmed.
+2. **Be a merchant.** Open the app, log in with an email, and create an invoice for 5 USDT or less.
+   Copy its pay link.
+3. **Be the customer.** Open that link in a private window, log in with another email, add test
+   USDT and pay. No wallet and no gas.
+4. **Refund it.** Back in the first window, open the invoice and refund part of it. The customer's
+   receipt shows the refund.
+
+To add Settle to a website of your own, the app's Docs page has the steps.
+
+## How Settle meets each track
+
+| Track asks for | Where it is |
+|---|---|
+| **Operate:** a drop-in piece a separate demo app adds in about 20 lines | [`settle-pay`](packages/sdk) and [`checkout.js`](apps/web/public/checkout.js). [`apps/shop`](apps/shop) is a separate store with 22 lines of Settle code, printed on its own page |
+| **Operate:** both views, merchant and paying customer | The dashboard and the pay page, plus the store and Settle Checkout |
+| **Operate:** past the first payment | Refunds in part or in full with a receipt the customer can check, subscriptions that renew and cancel, reminders, a CSV export, signed webhooks |
+| **Scale:** a payer flow with no crypto steps | Email login, one button to pay, no wallet, no gas, no network to choose |
+| **Scale:** who pays the gas, where the WBT comes from, what stops a drain | [The relayer](#the-relayer) |
+| **Arkiv:** a feature users see reads from Arkiv | Business names, customer details, plans, webhook settings and the delivery log. See [`arkiv/`](arkiv) |
 
 ## Why onchain stablecoin settlement on Whitechain
 
@@ -21,6 +44,16 @@ A studio in Mumbai billing a client in Berlin can be paid in USDT in about a sec
 its own wallet, with no bank in between. The payment, and any refund back to the same wallet, is a
 public record both sides can check. A regular payment rail can't give the customer that record, and
 it can't accept a single signature as a payment that someone else submits on the customer's behalf.
+
+It also changes what a payment costs and when it is final:
+
+- **A flat fee.** A payment costs a few cents of gas whatever its amount, where a card gateway
+  takes a percentage. Settle adds nothing on top.
+- **Final in seconds, with no chargebacks.** A refund is the merchant's decision, made in one click.
+- **A store can check a payment itself.** The SDK confirms an order by reading the contract, so a
+  store doesn't have to trust Settle's word, or keep a shared secret, to know it was paid.
+- **Recurring billing the customer controls.** A subscription is an allowance with a cap the
+  customer signed, and they can cancel it without asking anyone.
 
 USDT on Whitechain supports EIP-3009, so a customer can sign one message and a relayer pays the
 gas. We found no hosted paymaster or bundler for Whitechain, which is why Settle uses EIP-3009 with
@@ -59,12 +92,16 @@ sent by the relayer, `0x21dc…836C`.
  ┌──────────────────────┐   signs    ┌───────────────────────┐   sends    ┌─────────────────────┐
  │ email login (Privy   │ ─────────▶ │ relay API + relayer   │ ─────────▶ │ Whitechain Sepolia  │
  │ wallet), or a        │            │ wallet                │            │  InvoiceRegistry    │
- │ browser wallet       │            │                       │            │  GaslessTransfer    │
- └──────────────────────┘            │ invoice details ──────┼──▶ Arkiv   │  USDT               │
-                                     │ encrypted PDFs ───────┼──▶ Swarm   └─────────────────────┘
- A store's server ─────settle-pay───▶│                       │                       ▲
-                                     └───────────────────────┘                       │
-        browsers and the SDK read invoices straight from the contract ───────────────┘
+ │ browser wallet       │            │                       │            │  Subscriptions      │
+ └──────────────────────┘            │ details, settings ────┼──▶ Arkiv   │  GaslessTransfer    │
+                                     │ encrypted PDFs ───────┼──▶ Swarm   │  USDT               │
+ A store's website                   │                       │            └─────────────────────┘
+ ┌──────────────────────┐ settle-pay │                       │                       ▲
+ │ its server           │ ─────────▶ │ orders and refunds    │                       │
+ │ its page             │ checkout.js│ Settle Checkout       │                       │
+ │ its server           │ ◀───────── │ signed webhooks       │                       │
+ └──────────────────────┘            └───────────────────────┘                       │
+        browsers and the SDK read payments straight from the contract ───────────────┘
 ```
 
 ## How it works
@@ -143,6 +180,9 @@ balance, and it stops relaying below 0.005 WBT.
 - A merchant who has never been paid can keep 5 unpaid invoices. Free actions are capped per
   merchant per day (50 creates, 20 refunds, 20 cancels) and at 500 a day in total.
 - 30 requests a minute per address, and nothing is sent when gas is above 50 gwei.
+- Test money goes only to a logged-in account that has less than the limit, once a day, with a
+  daily total. It is sent from the relayer's own test USDT.
+- If two copies of the server pick the same transaction number, the later one sends again.
 
 ## Invoice details on Arkiv
 
@@ -164,7 +204,8 @@ pnpm install
 ARKIV_ACCESS_KEY=<your key> node apps/web/scripts/arkiv-query.mjs
 ```
 
-This lists the records of the two invoices on the live contract, and any subscription plans. To see sample records from a test
+This lists the invoice records on the live contract, any subscription plans, and recent webhook
+deliveries with the days each has left before Arkiv drops it. To see sample records from a test
 deployment, add its address: `0x0862eb825530db019ed13dbb1a1ef0c6567ba25e`.
 
 The query filters on the writer wallet, because anyone can create entities with the same schema name.
@@ -231,8 +272,8 @@ arkiv/                       Arkiv schema, feedback and track notes
 
 ## Running locally
 
-Requires [Foundry](https://getfoundry.sh). The tests fork Whitechain Sepolia and run against the
-real USDT, so they need network access.
+Requires [Foundry](https://getfoundry.sh). The 132 contract tests fork Whitechain Sepolia and run
+against the real USDT, so they need network access. They cover every line of the three contracts.
 
 ```bash
 cd contracts
@@ -253,7 +294,8 @@ keys from the app's Developers page. It runs on port 3100:
 pnpm dev:store
 ```
 
-To deploy both, see [`DEPLOY.md`](DEPLOY.md).
+To check every feature by hand, follow [`TESTING.md`](TESTING.md). To deploy both, see
+[`DEPLOY.md`](DEPLOY.md).
 
 ## Current limitations
 
@@ -276,6 +318,8 @@ To deploy both, see [`DEPLOY.md`](DEPLOY.md).
   been run end to end yet. The SDK is not on npm until the app has its deployed address.
 - A store's order is created on-chain when checkout starts, so an abandoned cart costs the relayer
   gas. It is capped per merchant per day.
+- The test money button stands in for a card or bank payment. It is capped, and only exists on
+  testnet.
 - A webhook is tried 3 times over a few seconds. After that the merchant resends it by hand. There
   is no webhook for a subscription charge yet.
 - Encrypted customer details are stored on public Arkiv. This uses sample data on testnet and should

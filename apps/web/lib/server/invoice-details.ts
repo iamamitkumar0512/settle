@@ -28,7 +28,8 @@ export function parseInvoiceDetails(
     return null;
   }
   // A store's order adds its own order number and where to send the customer afterwards.
-  const { receipt, callbackUrl } = body as Record<string, unknown>;
+  const { receipt, callbackUrl, kind } = body as Record<string, unknown>;
+  if (kind !== undefined && kind !== "order") return null;
   if (receipt !== undefined) {
     const isPlain = typeof receipt === "string" && /^[\x20-\x7e]+$/.test(receipt);
     if (!isPlain || receipt.length > INVOICE_LIMITS.receiptBytes) return null;
@@ -60,6 +61,7 @@ export function parseInvoiceDetails(
     memo,
     ...(receipt ? { receipt } : {}),
     ...(callbackUrl ? { callbackUrl } : {}),
+    ...(kind ? { kind } : {}),
     salt,
   };
 }

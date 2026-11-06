@@ -8,7 +8,8 @@ Settle was built with Claude Code during ETHGlobal Mumbai 2026.
 - **Decisions and review:** Amit chose the product scope, reviewed each step, ran deployments and made
   all commits.
 - **Testing:** contract tests run against the real test USDT on a fork. Claude Code tested app
-  flows on local forks with a scripted wallet and with read-only checks against the live contract.
-  Amit ran the real payments and refunds on Whitechain Sepolia.
+  flows on local forks with a scripted wallet in a headless browser, and with read-only checks
+  against the live contract. It could not test email login, so Amit tested that, and ran the real
+  payments and refunds on Whitechain Sepolia.
 - **Feedback files:** `WHITECHAIN_FEEDBACK.md` and `arkiv/friction.md` record problems hit during
   the build. Claude Code drafted them from the session's own log, and Amit reviewed them.
