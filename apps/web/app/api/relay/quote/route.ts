@@ -16,7 +16,7 @@ export async function GET() {
   } catch (error) {
     if (!(error instanceof RelayError)) throw error;
   }
-  const { payFee, withdrawFee, chargeFee } = await relayFees();
+  const { payFee, withdrawFee, chargeFee, agentFee } = await relayFees();
   return Response.json({
     available: relayer !== null,
     relayer,
@@ -24,6 +24,7 @@ export async function GET() {
     minInvoice: String(MIN_INVOICE),
     withdrawFee: String(withdrawFee),
     chargeFee: String(chargeFee),
+    agentFee: String(agentFee),
     canAttachPdf: swarmConfigured(),
     canSendReminders: emailConfigured(),
     topUpAmount: String(topUpLimit()),

@@ -21,6 +21,11 @@ export function customerLookup(email: string) {
   return keyedHash(normalizeEmail(email));
 }
 
+// Finds one store's sale to an agent, without showing its order number on Arkiv.
+export function saleLookup(merchant: string, receipt: string) {
+  return keyedHash(`sale:${merchant.toLowerCase()}:${receipt}`);
+}
+
 // The same for an invoice sent to a wallet address. The prefix keeps the two kinds apart.
 export function walletLookup(wallet: string) {
   return keyedHash(`wallet:${wallet.trim().toLowerCase()}`);

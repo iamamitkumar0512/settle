@@ -7,6 +7,8 @@ import { chainClient } from "./relayer";
 const PAY_GAS = 150_000n;
 const WITHDRAW_GAS = 160_000n;
 const CHARGE_GAS = 135_000n;
+// An agent's payment and the merchant's gas repayment, sent as one transaction.
+const AGENT_SALE_GAS = 160_000n;
 // Fees are rounded up to 0.001 USDT.
 const STEP = 1_000n;
 const PRICE_TTL_MS = 5 * 60_000;
@@ -52,6 +54,7 @@ export async function relayFees() {
       payFee: FALLBACK_PAY_FEE,
       withdrawFee: FALLBACK_WITHDRAW_FEE,
       chargeFee: FALLBACK_PAY_FEE,
+      agentFee: FALLBACK_PAY_FEE,
     };
   }
   return {
@@ -59,6 +62,8 @@ export async function relayFees() {
     withdrawFee: inUsdt(WITHDRAW_GAS, gasPrice, price),
     // What collecting one period of a subscription costs. A plan stores it as its fee.
     chargeFee: inUsdt(CHARGE_GAS, gasPrice, price),
+    // What settling one sale to an agent costs.
+    agentFee: inUsdt(AGENT_SALE_GAS, gasPrice, price),
   };
 }
 

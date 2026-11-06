@@ -1,5 +1,6 @@
 // Lists Settle's public records on Arkiv: invoices, the PDFs attached to them, subscription
-// plans, and recent webhook deliveries with the days each has left. Needs only a free access key:
+// plans, sales to AI agents, and recent webhook deliveries with the days each has left. Needs only
+// a free access key:
 //   ARKIV_ACCESS_KEY=<key> node apps/web/scripts/arkiv-query.mjs [registry] [subscriptions]
 // Encrypted customer fields are returned as stored, so this script can't read them. A PDF's
 // Swarm reference is public, but the bytes behind it are encrypted too.
@@ -45,6 +46,24 @@ const PlanRecord = defineSchema("settle_plan_v1", {
   merchant_name: str(),
   plan_name: str(),
   public_details: bytes(),
+});
+
+// A sale to an AI agent, saved just before its payment is sent. Only the merchant can read what
+// was sold and the order number. Whether it was paid is on the chain, not here.
+const AgentSale = defineSchema("settle_agent_sale_v1", {
+  registry: addr().indexed(),
+  merchant: addr().indexed(),
+  receipt_lookup: str().indexed(),
+  payment_nonce: str().indexed(),
+  sold_at: u64().indexed(),
+  payer: addr(),
+  amount_usdt: u256(),
+  network_fee: u256(),
+  valid_before: u64(),
+  chain_block: u64(),
+  merchant_name: str(),
+  private_details: bytes(),
+  private_media_type: str(),
 });
 
 // One try at sending a webhook. These expire after 7 days, so the log cleans itself up.
@@ -161,6 +180,37 @@ const plans = planPage.entities.map((row) => ({
   publicDetails: hexToString(row.public_details.value),
 }));
 
+const salePage = await client
+  .select({
+    $key: true,
+    $creationFlags: true,
+    merchant: true,
+    merchant_name: true,
+    payer: true,
+    amount_usdt: true,
+    network_fee: true,
+    sold_at: true,
+    private_details: true,
+  })
+  .from(AgentSale)
+  .where(and(eq("registry", addr(registry))))
+  .createdBy(WRITER)
+  .orderBy(desc("sold_at"))
+  .limit(10)
+  .fetch();
+
+const agentSales = salePage.entities.map((row) => ({
+  entityKey: row.$key,
+  merchant: row.merchant.value,
+  merchantName: row.merchant_name.value,
+  payer: row.payer.value,
+  amountUsdt: formatUnits(BigInt(row.amount_usdt.value), 6),
+  networkFeeUsdt: formatUnits(BigInt(row.network_fee.value), 6),
+  soldAt: new Date(Number(row.sold_at.value) * 1000).toISOString(),
+  encryptedBytes: (row.private_details.value.length - 2) / 2,
+  readonly: row.$creationFlags.readonly,
+}));
+
 const deliveryPage = await client
   .select({
     $expiresAt: true,
@@ -192,7 +242,17 @@ const deliveries = deliveryPage.entities.map((row) => ({
 
 console.log(
   JSON.stringify(
-    { registry, subscriptions, writer: WRITER, count: rows.length, rows, files, plans, deliveries },
+    {
+      registry,
+      subscriptions,
+      writer: WRITER,
+      count: rows.length,
+      rows,
+      files,
+      plans,
+      agentSales,
+      deliveries,
+    },
     null,
     2,
   ),

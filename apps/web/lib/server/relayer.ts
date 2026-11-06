@@ -120,7 +120,8 @@ async function retryOnNonceClash(write: () => Promise<Hash>) {
   }
 }
 
-async function send(call: RelayCall): Promise<{ hash: Hash; receipt: TransactionReceipt }> {
+// Everything that can stop a transaction before it is sent. It sends nothing.
+export async function prepareRelay(call: RelayCall) {
   const account = relayerAccount();
   const [balance, fees] = await Promise.all([
     chainClient.getBalance({ address: account.address }),
@@ -137,7 +138,11 @@ async function send(call: RelayCall): Promise<{ hash: Hash; receipt: Transaction
   } catch (error) {
     throw new RelayError(400, revertReason(error) ?? "simulation_failed");
   }
+  return { account, fees, gas };
+}
 
+async function send(call: RelayCall): Promise<{ hash: Hash; receipt: TransactionReceipt }> {
+  const { account, fees, gas } = await prepareRelay(call);
   const wallet = createWalletClient({
     account,
     chain: whitechainSepolia,

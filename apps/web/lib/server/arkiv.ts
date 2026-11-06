@@ -14,12 +14,14 @@ import { isValidCallbackUrl } from "@/lib/checkout";
 import { REGISTRY_ADDRESS, SUBSCRIPTIONS_ADDRESS } from "@/lib/contracts";
 import type { CustomerInvoice, InvoiceCustomer } from "@/lib/customer-invoices";
 import type { PlanDetails } from "@/lib/subscription";
-import { customerLookup, normalizeEmail, walletLookup } from "./customer-lookup";
+import { customerLookup, normalizeEmail, saleLookup, walletLookup } from "./customer-lookup";
 import { FILE_ENCRYPTION } from "./invoice-file";
 import { payLinkKey } from "./pay-link";
 import {
+  decryptAgentSale,
   decryptPrivateDetails,
   decryptWebhookDetails,
+  encryptAgentSale,
   encryptPrivateDetails,
   encryptWebhookDetails,
   type PrivateDetails,
@@ -97,6 +99,24 @@ const WebhookDelivery = defineSchema("settle_webhook_delivery_v1", {
   invoice_id: u64(),
   status_code: u64(),
   attempts: u64(),
+});
+
+// A sale to an AI agent. It is saved before the payment is sent, so it proves only an attempt: the
+// token's own record of the signature decides whether it was paid.
+const AgentSaleEntity = defineSchema("settle_agent_sale_v1", {
+  registry: addr().indexed(),
+  merchant: addr().indexed(),
+  receipt_lookup: str().indexed(),
+  payment_nonce: str().indexed(),
+  sold_at: u64().indexed(),
+  payer: addr(),
+  amount_usdt: u256(),
+  network_fee: u256(),
+  valid_before: u64(),
+  chain_block: u64(),
+  merchant_name: str(),
+  private_details: bytes(),
+  private_media_type: str(),
 });
 
 const DELIVERY_LOG_DAYS = 7;
@@ -510,6 +530,105 @@ export async function readCustomerInvoices(customer: BilledTo) {
   }
 }
 
+export type AgentSaleRecord = {
+  merchant: Address;
+  merchantName: string;
+  payer: Address;
+  nonce: Hex;
+  amount: bigint;
+  networkFee: bigint;
+  validBefore: bigint;
+  chainBlock: bigint;
+  soldAt: bigint;
+  receipt: string;
+  description: string;
+};
+
+const SALE_COLUMNS = {
+  merchant: true,
+  merchant_name: true,
+  payer: true,
+  payment_nonce: true,
+  amount_usdt: true,
+  network_fee: true,
+  valid_before: true,
+  chain_block: true,
+  sold_at: true,
+  private_details: true,
+  private_media_type: true,
+} as const;
+
+// A merchant's sales to agents, newest first, or just those for one order number.
+export async function readAgentSaleRecords(merchant: Address, receipt?: string) {
+  const base = arkivReader().select(SALE_COLUMNS).from(AgentSaleEntity);
+  const scoped =
+    receipt === undefined
+      ? base.where(and(eq("registry", addr(REGISTRY_ADDRESS)), eq("merchant", addr(merchant))))
+      : base.where(
+          and(
+            eq("registry", addr(REGISTRY_ADDRESS)),
+            eq("merchant", addr(merchant)),
+            eq("receipt_lookup", str(saleLookup(merchant, receipt))),
+          ),
+        );
+  const page = await scoped
+    .createdBy(writerAccount().address)
+    .orderBy(desc("sold_at"))
+    .limit(PAGE_SIZE)
+    .fetch();
+  return Promise.all(page.entities.map(toAgentSale));
+}
+
+type SaleRow = Parameters<typeof toAgentSale>[0];
+
+async function toAgentSale(row: {
+  merchant: { value: string };
+  merchant_name: { value: string };
+  payer: { value: string };
+  payment_nonce: { value: string };
+  amount_usdt: { value: unknown };
+  network_fee: { value: unknown };
+  valid_before: { value: unknown };
+  chain_block: { value: unknown };
+  sold_at: { value: unknown };
+  private_details: { value: Hex };
+  private_media_type: { value: string };
+}): Promise<AgentSaleRecord> {
+  const nonce = row.payment_nonce.value as Hex;
+  const details = await decryptAgentSale(
+    nonce,
+    hexToBytes(row.private_details.value),
+    row.private_media_type.value,
+  ).catch(() => ({ receipt: "", description: "" }));
+  return {
+    merchant: row.merchant.value as Address,
+    merchantName: row.merchant_name.value,
+    payer: row.payer.value as Address,
+    nonce,
+    amount: BigInt(String(row.amount_usdt.value)),
+    networkFee: BigInt(String(row.network_fee.value)),
+    validBefore: BigInt(String(row.valid_before.value)),
+    chainBlock: BigInt(String(row.chain_block.value)),
+    soldAt: BigInt(String(row.sold_at.value)),
+    ...details,
+  };
+}
+
+// The sale a payment's nonce belongs to. Most nonces belong to none: every token payment has one.
+export async function readAgentSaleByNonce(nonce: Hex) {
+  const page = await arkivReader()
+    .select(SALE_COLUMNS)
+    .from(AgentSaleEntity)
+    .where(
+      and(eq("registry", addr(REGISTRY_ADDRESS)), eq("payment_nonce", str(nonce.toLowerCase()))),
+    )
+    .createdBy(writerAccount().address)
+    .limit(1)
+    .fetch();
+  const row: SaleRow | undefined = page.entities[0];
+  return row ? toAgentSale(row) : null;
+}
+
 // One wallet has one nonce sequence, so writes in this process go one at a time.
 let lastWrite: Promise<unknown> = Promise.resolve();
 
@@ -634,6 +753,39 @@ async function createDeliveryRecord(input: DeliveryInput) {
     { expiration: ExpirationTime.fromDays(DELIVERY_LOG_DAYS), flags: { readonly: true } },
     transaction,
   );
+}
+
+type AgentSaleInput = Omit<AgentSaleRecord, "soldAt">;
+
+async function createAgentSaleRecord(input: AgentSaleInput) {
+  const nonce = input.nonce.toLowerCase();
+  const { envelope, mediaType } = await encryptAgentSale(nonce, input);
+  const { wallet, transaction } = await writer();
+  // Never retried here, for the same reason as above.
+  return wallet.createEntity(
+    AgentSaleEntity,
+    {
+      registry: addr(REGISTRY_ADDRESS),
+      merchant: addr(input.merchant),
+      receipt_lookup: str(saleLookup(input.merchant, input.receipt)),
+      payment_nonce: str(nonce),
+      sold_at: u64(BigInt(Math.floor(Date.now() / 1000))),
+      payer: addr(input.payer),
+      amount_usdt: u256(input.amount),
+      network_fee: u256(input.networkFee),
+      valid_before: u64(input.validBefore),
+      chain_block: u64(input.chainBlock),
+      merchant_name: str(input.merchantName),
+      private_details: bytes(envelope),
+      private_media_type: str(mediaType),
+    },
+    { expiration: ExpirationTime.max(), flags: { readonly: true } },
+    transaction,
+  );
+}
+
+export function writeAgentSale(input: AgentSaleInput) {
+  return oneAtATime(() => createAgentSaleRecord(input));
 }
 
 export function writeWebhookDelivery(input: DeliveryInput) {

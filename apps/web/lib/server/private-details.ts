@@ -61,6 +61,46 @@ export async function decryptWebhookDetails(
   return { url, secret };
 }
 
+// What an agent bought, and the store's own order number.
+type AgentSalePrivate = { receipt: string; description: string };
+
+// The payment's nonce is inside the ciphertext, so an envelope copied onto another sale won't
+// decrypt.
+export async function encryptAgentSale(nonce: string, details: AgentSalePrivate) {
+  const { receipt, description } = details;
+  return {
+    envelope: await encryptBytes(
+      await dataKey(),
+      pad(JSON.stringify({ nonce: nonce.toLowerCase(), receipt, description })),
+    ),
+    mediaType: CONTENT_TYPE,
+  };
+}
+
+// Throws a fixed error on any failure, and never quotes the decrypted text.
+export async function decryptAgentSale(
+  nonce: string,
+  envelope: Uint8Array,
+  mediaType: string,
+): Promise<AgentSalePrivate> {
+  if (mediaType !== CONTENT_TYPE) throw new Error("Unsupported encrypted data");
+
+  const bytes = await decryptBytes(await dataKey(), envelope);
+  const value = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(bytes)) as Record<
+    string,
+    unknown
+  >;
+  const { nonce: owner, receipt, description } = value;
+  if (
+    owner !== nonce.toLowerCase() ||
+    typeof receipt !== "string" ||
+    typeof description !== "string"
+  ) {
+    throw new Error("Encrypted data is not valid for this sale");
+  }
+  return { receipt, description };
+}
+
 // The invoice id is inside the ciphertext, so an envelope copied onto another invoice won't decrypt.
 export async function encryptPrivateDetails(invoiceId: bigint, details: PrivateDetails) {
   const { customerName, customerEmail, customerWallet, receipt, salt } = details;
