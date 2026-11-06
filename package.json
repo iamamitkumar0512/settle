@@ -10,7 +10,7 @@
   "packageManager": "pnpm@9.15.9",
   "scripts": {
     "dev": "pnpm --filter @settle/web dev",
-    "build": "pnpm --filter @settle/web build",
+    "build": "pnpm --filter settle-pay build && pnpm --filter @settle/web build",
     "test:contracts": "cd contracts && forge test -vv"
   },
   "pnpm": {

@@ -2,23 +2,20 @@ import { CheckoutForm } from "./checkout-form";
 
 export const maxDuration = 60;
 
-const INTEGRATION = `import { Settle } from "@settle/sdk";
+const INTEGRATION = `import Settle from "settle-pay";
 
-const settle = new Settle({ baseUrl, account });
+const settle = new Settle({ keyId, keySecret, businessName: "Chai Point" });
 
 // Checkout: create the order, send the customer to pay.
-const order = await settle.createInvoice({
+const order = await settle.orders.create({
   amount: product.price,
-  dueAt: inAWeek,
-  businessName: "Chai Point",
-  customer,
-  memo: product.name,
+  description: product.name,
 });
 redirect(order.payUrl);
 
 // Order page: read the payment from the contract.
-const invoice = await settle.getInvoice(order.id);
-if (invoice.status === "paid") confirmOrder();`;
+const paid = await settle.orders.fetch(order.id);
+if (paid.status === "paid") confirmOrder();`;
 
 export default function ShopPage() {
   return (

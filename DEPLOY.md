@@ -10,7 +10,7 @@ yet, so treat the first deploy as a test.
 | Root Directory | `apps/web` |
 | Framework preset | Next.js |
 | Build and install commands | Leave the defaults |
-| Include files outside the Root Directory | On. The app imports `packages/sdk`. |
+| Include files outside the Root Directory | On. The app imports `packages/sdk`, which must be built first. |
 | Node.js | 20 or newer |
 
 The repo is a pnpm workspace, so dependencies install from the repo root.

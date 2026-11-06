@@ -1,89 +1,159 @@
-# @settle/sdk
+# settle-pay
 
-Take USDT payments on Whitechain from your own app. Your server creates an invoice, sends the
-customer to Settle's pay page, and reads the payment from the contract.
+Take USDT on Whitechain from your own store, the way you take cards with Razorpay or Stripe. Your
+server creates an order, Settle Checkout opens over your page, and your server verifies the
+payment. Your customer pays with an email address and needs no wallet and no gas.
 
-Your wallet signs each request and Settle's relayer submits it, so the wallet never needs gas.
-There are no API keys: the signature is the authorization.
+The money goes straight from your customer to your account. Settle adds no fee. A small network
+fee repays the gas, and it is the same whatever the order's amount.
 
-## Quick start
+## Install
 
-```ts
-import { Settle } from "@settle/sdk";
-import { privateKeyToAccount } from "viem/accounts";
-
-const settle = new Settle({
-  baseUrl: "https://<your Settle>",
-  account: privateKeyToAccount(process.env.MERCHANT_KEY),
-});
-
-// Checkout: create the order and send the customer to pay.
-const order = await settle.createInvoice({
-  amount: "3.00",
-  dueAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-  businessName: "Chai Point",
-  customer: "priya@example.com", // or a wallet address
-  memo: "Masala chai blend",
-});
-redirect(order.payUrl);
-
-// Later: read the payment from the contract.
-const invoice = await settle.getInvoice(order.id);
-if (invoice.status === "paid") confirmOrder();
+```bash
+npm install settle-pay
 ```
 
-Use it on a server. The wallet's key must never reach a browser.
+Your Key ID is your Settle account's address. Your Key Secret is that account's signing key. It
+can move your money, like a card gateway's secret key, so keep it on your server and use one
+Settle account per store.
 
-## What you can call
+## Take a payment
 
-| Call | What it does | Signs |
-|---|---|---|
-| `createInvoice(invoice)` | Creates an invoice. Returns its id and `payUrl`. | Yes |
-| `payUrl(id, options)` | The pay page for an invoice, with an optional way back to your site. | No |
-| `getInvoice(id)` | Reads an invoice from the contract. | No |
-| `getInvoiceDetails(id)` | The business name and description saved with it. | No |
-| `listInvoices(merchant?)` | Every invoice of a merchant, newest first. | No |
-| `waitForPayment(id, options)` | Resolves when the invoice is paid. | No |
-| `refund(id, amount)` | Sends USDT back to whoever paid, in part or in full. | Yes |
-| `cancel(id)` | Cancels an unpaid invoice. | Yes |
-| `withdraw(to, amount)` | Sends the wallet's USDT to any address. | Yes |
-| `pay(id)` | Pays an invoice from the wallet. Useful for a script or an agent. | Yes |
-| `balance(address?)` | A wallet's USDT balance. | No |
-| `quote()` | The current network fees. | No |
+**1. On your server, create the order.**
 
-Amounts go in as text (`"12.50"`) or base units (`12_500_000n`) and come back as base units.
-`formatUsdt` and `parseUsdt` convert between them.
+```js
+import Settle from "settle-pay";
 
-A failed call throws `SettleError`. Its `code` is Settle's reason, such as `InvoiceNotOpen`,
-`RefundTooLarge` or `open_invoice_limit`.
+const settle = new Settle({
+  keyId: process.env.SETTLE_KEY_ID,
+  keySecret: process.env.SETTLE_KEY_SECRET,
+  businessName: "Chai Point",
+  baseUrl: "https://<your Settle>",
+});
 
-## Fees
+app.post("/orders", async (req, res) => {
+  const order = await settle.orders.create({
+    amount: "3.00",
+    description: "Masala chai blend",
+    receipt: "order_42",
+    callbackUrl: "https://your-store.example/thanks",
+  });
+  res.json(order);
+});
+```
 
-Settle adds no fee of its own. A network fee only repays the gas the relayer spends:
+**2. In the browser, open checkout from a click.**
 
-- An invoice paid without gas gives up `invoice.networkFee` from its amount.
-- `withdraw` takes the fee from the amount sent.
-- Creating, cancelling and refunding are free.
+```html
+<script src="https://<your Settle>/checkout.js"></script>
+<script>
+  buy.onclick = () =>
+    new Settle.Checkout({
+      orderId: () => fetch("/orders", { method: "POST" }).then((r) => r.json()).then((o) => o.id),
+      handler: (response) =>
+        fetch("/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(response),
+        }),
+      onDismiss: () => showCart(),
+    }).open();
+</script>
+```
 
-## The Settle dashboard
+`orderId` is an order's id, or a function that creates the order and gives its id. Use the function
+when you create the order at the click. Creating one takes seconds, and browsers block a window
+opened that long after a click. The function lets the window open at once.
 
-Invoices made with the SDK are ordinary Settle invoices. Log in to Settle with the same wallet to
-see them, refund them, export them and withdraw.
+Checkout opens in its own window, so your customer stays on your page. If the window is blocked,
+the whole page goes to Settle and comes back to `callbackUrl` with `settle_order_id` and
+`settle_payment_id` in the address. `redirect: true` always works this way.
 
-A merchant who signed up to Settle by email has no key to give a server, so the SDK needs a
-wallet you hold the key for.
+| Option | What it does |
+|---|---|
+| `orderId` | An order's id, or a function that gives one. Required. |
+| `handler(response)` | Runs after payment with `{ settle_order_id, settle_payment_id }`. |
+| `onDismiss()` | Runs when the customer closes checkout without paying. |
+| `onError(error)` | Runs when `orderId` fails. |
+| `redirect` | `true` skips the window and uses the whole page. |
 
-## Limits
+**3. On your server, verify before you fulfil.**
 
-- Settle allows a wallet that has never been paid 5 unpaid invoices at a time.
-- The relay API allows 30 requests a minute from one address.
-- `payUrl`'s `returnPath` only works for a page on the same site as Settle.
+```js
+app.post("/verify", async (req, res) => {
+  const payment = await settle.payments.verify(req.body);
+  fulfil(payment.receipt);
+  res.json({ ok: true });
+});
+```
+
+`verify` reads Whitechain, not Settle. It throws unless the payment exists, paid that order, and the
+order is yours. Never trust the browser's word on its own. Also check that the order is the one
+this customer is buying, so a paid cheap order can't be reused for a dear one.
+
+## Everything you can call
+
+Results are plain text and numbers, so they go straight into `res.json()`. Amounts are USDT, like
+`"3.00"`.
+
+| Call | What it does |
+|---|---|
+| `orders.create(order)` | Creates an order to pay at checkout. |
+| `orders.fetch(id)` | One of your orders, read from the chain. |
+| `orders.all()` | All your orders and payment links, newest first. |
+| `orders.cancel(id)` | Cancels an order nobody has paid. |
+| `orders.waitForPayment(id, options)` | Resolves once it is paid. For scripts. |
+| `orders.pay(id)` | Pays any open order from this account. For a script or an agent. |
+| `payments.verify(response)` | Confirms a payment. |
+| `refunds.create({ orderId, amount })` | Refunds in part, or in full with no `amount`. It comes from your balance, and your customer sees it on their receipt. |
+| `paymentLinks.create(link)` | An invoice with a due date and a link to share. No code on your site. |
+| `account.balance()` | This account's USDT. |
+| `account.withdraw({ to, amount })` | Sends USDT to any address. The network fee comes out of `amount`. |
+| `fees()` | Current network fees and the smallest order. |
+
+`orders.create` takes `amount`, and optionally `description`, `receipt`, `callbackUrl`, `customer`,
+`customerName` and `businessName`. `customer` is an email or a wallet address: leave it out and
+whoever checks out pays. `receipt` is your own order number. Only you can read it, in the dashboard
+and the CSV export.
+
+`paymentLinks.create` takes the same fields and a `dueAt` date, and defaults to 7 days.
+
+## Errors
+
+A failed call throws `SettleError`. `message` says what went wrong and `code` is stable, so you can
+branch on it.
+
+```js
+import { SettleError } from "settle-pay";
+
+try {
+  await settle.payments.verify(response);
+} catch (error) {
+  if (error instanceof SettleError && error.code === "order_not_paid") showRetry();
+  else throw error;
+}
+```
+
+## Fees and limits
+
+- An order paid without gas gives up `order.networkFee` from its amount. If a wallet customer pays
+  their own gas, you get the whole amount.
+- The smallest order is 1 USDT. See `fees()`.
+- An account that has never been paid can hold 5 unpaid orders at a time.
+- An account can create 50 orders a day.
+- Settle's API allows 30 requests a minute from one address.
 - Testnet only: Whitechain Sepolia, chain `1874`.
+
+## Use from CommonJS
+
+```js
+const Settle = require("settle-pay");
+```
+
+Node 20 or later. The SDK refuses to run in a browser, so your secret can't end up in one.
 
 ## Try it
 
 ```bash
-SETTLE_URL=https://<your Settle> MERCHANT_KEY=0x... CUSTOMER=you@example.com pnpm --filter @settle/sdk example
+SETTLE_URL=https://<your Settle> SETTLE_KEY_ID=0x... SETTLE_KEY_SECRET=... pnpm --filter settle-pay example
 ```
-
-The demo shop in [`apps/web/app/shop`](../../apps/web/app/shop) is a complete integration.

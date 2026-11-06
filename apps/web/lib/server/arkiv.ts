@@ -264,9 +264,11 @@ export async function readMerchantInvoiceIds(merchant: Address) {
   }
 }
 
-export async function readMerchantCustomers(merchant: Address) {
+export async function readMerchantCustomers(merchant: Address, id?: bigint) {
   const customers: InvoiceCustomer[] = [];
   const reader = arkivReader();
+  const registry = eq("registry", addr(REGISTRY_ADDRESS));
+  const owner = eq("merchant", addr(merchant));
 
   for (let offset = 0; ; offset += PAGE_SIZE) {
     const page = await reader
@@ -278,29 +280,31 @@ export async function readMerchantCustomers(merchant: Address) {
         private_media_type: true,
       })
       .from(InvoiceRecord)
-      .where(and(eq("registry", addr(REGISTRY_ADDRESS)), eq("merchant", addr(merchant))))
+      .where(
+        id === undefined ? and(registry, owner) : and(registry, owner, eq("invoice_id", u64(id))),
+      )
       .createdBy(writerAccount().address)
       .limit(PAGE_SIZE)
       .offset(offset)
       .fetch();
 
     for (const row of page.entities) {
-      const id = BigInt(row.invoice_id.value);
+      const invoiceId = BigInt(row.invoice_id.value);
       // One unreadable record shouldn't hide the merchant's other customers.
       const details = await decryptPrivateDetails(
-        id,
+        invoiceId,
         hexToBytes(row.private_details.value),
         row.private_media_type.value,
       ).catch(() => null);
       customers.push({
-        id: String(id),
+        id: String(invoiceId),
         merchantName: row.merchant_name.value,
         memo: memoFrom(row.public_details.value),
         customerName: details?.customerName ?? "",
         customerEmail: details?.customerEmail ?? "",
         customerWallet: details?.customerWallet ?? "",
         receipt: details?.receipt ?? "",
-        linkKey: payLinkKey(id),
+        linkKey: payLinkKey(invoiceId),
       });
     }
 

@@ -62,7 +62,7 @@ sent by the relayer, `0x21dc…836C`.
  │ browser wallet       │            │                       │            │  GaslessTransfer    │
  └──────────────────────┘            │ invoice details ──────┼──▶ Arkiv   │  USDT               │
                                      │ encrypted PDFs ───────┼──▶ Swarm   └─────────────────────┘
- Another app's server ──@settle/sdk─▶│                       │                       ▲
+ A store's server ─────settle-pay───▶│                       │                       ▲
                                      └───────────────────────┘                       │
         browsers and the SDK read invoices straight from the contract ───────────────┘
 ```
@@ -171,16 +171,30 @@ The query filters on the writer wallet, because anyone can create entities with 
 
 ## SDK and demo shop
 
-[`@settle/sdk`](packages/sdk) lets another app take USDT through Settle. Its server signs with the
-merchant's wallet and Settle's relayer submits, so there are no API keys and no gas.
+A store takes USDT through Settle the way it would take cards through a payment gateway. The
+server creates an order, [`checkout.js`](apps/web/public/checkout.js) opens Settle Checkout over the
+store's page, and the server verifies the payment against the chain.
 
-```ts
-const order = await settle.createInvoice({ amount: "3.00", dueAt, businessName, customer, memo });
-redirect(order.payUrl);
+```js
+// server
+const settle = new Settle({ keyId, keySecret, businessName: "Chai Point" });
+const order = await settle.orders.create({ amount: "3.00", receipt: "order_42" });
+const payment = await settle.payments.verify(response);
 ```
 
-The demo shop at `/shop` is built only on the SDK. Its orders show in the Settle dashboard for the
-shop's wallet, because both read the same contract.
+```html
+<!-- browser -->
+<script src="https://<your Settle>/checkout.js"></script>
+<script>
+  new Settle.Checkout({ orderId, handler: (response) => confirmOnServer(response) }).open();
+</script>
+```
+
+[`settle-pay`](packages/sdk) also covers refunds, payment links and withdrawals. Everything it makes
+shows in the Settle dashboard for the same account, because both read the same contract. A business
+with no website can do all of this from the dashboard instead.
+
+The demo shop at `/shop` is built only on the SDK.
 
 ## PDF invoices on Swarm
 
@@ -199,7 +213,7 @@ contracts/
   test/                      fork tests against the real USDT
   script/                    deployment, Whitechain Sepolia only
 apps/web/                    Next.js dashboard, pay pages, API routes and the demo shop
-packages/sdk/                @settle/sdk, for taking payments from another app
+packages/sdk/                settle-pay, the SDK a store installs to take payments
 arkiv/                       Arkiv schema, feedback and track notes
 ```
 

@@ -1,11 +1,9 @@
 "use server";
 
-import { SettleError } from "@settle/sdk";
 import { redirect } from "next/navigation";
-import { PRODUCTS, SHOP_NAME } from "./products";
+import { SettleError } from "settle-pay";
+import { PRODUCTS } from "./products";
 import { shopSettle } from "./settle";
-
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 type CheckoutState = { error?: string };
 
@@ -27,17 +25,14 @@ export async function checkout(_: CheckoutState, form: FormData): Promise<Checko
 
   let payUrl: string;
   try {
-    const order = await settle.createInvoice({
+    const order = await settle.orders.create({
       amount: product.price,
-      dueAt: new Date(Date.now() + WEEK_MS),
-      businessName: SHOP_NAME,
+      description: product.name,
       customer,
-      memo: product.name,
     });
-    payUrl = settle.payUrl(order.id, {
-      linkKey: order.linkKey,
-      returnPath: `/shop/orders/${order.id}`,
-    });
+    const url = new URL(order.payUrl);
+    url.searchParams.set("return", `/shop/orders/${order.id}`);
+    payUrl = url.toString();
   } catch (error) {
     const code = error instanceof SettleError ? error.code : "";
     return { error: MESSAGES[code] ?? "We couldn't start your order. Try again." };
