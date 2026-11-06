@@ -17,6 +17,7 @@ const NAV = [
   { href: "/plans", label: "Plans" },
   { href: "/pay", label: "To pay" },
   { href: "/account", label: "Account" },
+  { href: "/developers", label: "Developers" },
 ];
 
 // How many invoices this account still has to pay, coloured when one is overdue or due soon.

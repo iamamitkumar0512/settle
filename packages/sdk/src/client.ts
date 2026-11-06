@@ -21,7 +21,7 @@ export type SettleOptions = {
   keySecret: string;
   /** The name your customer sees at checkout. */
   businessName?: string;
-  /** Where Settle runs. */
+  /** Where Settle runs. Or set SETTLE_BASE_URL. */
   baseUrl?: string;
   rpcUrl?: string;
   chainId?: number;
@@ -35,7 +35,7 @@ const MESSAGES: Record<string, string> = {
   invalid_key_id: "keyId must be the Key ID from your Settle Developers page.",
   invalid_key_secret: "keySecret must be the Key Secret from your Settle Developers page.",
   key_mismatch: "keyId and keySecret belong to different accounts.",
-  base_url_required: "Pass baseUrl: the address of your Settle.",
+  base_url_required: "Pass baseUrl or set SETTLE_BASE_URL: the address of your Settle.",
   business_name_required: "Pass businessName to new Settle(), or to this call.",
   invalid_amount: "amount must be a positive USDT value with at most 6 decimals, like \"3.00\".",
   invalid_order_id: "That isn't a valid order id.",
@@ -112,6 +112,17 @@ function toAccount(options: SettleOptions) {
 
 const SESSION_MS = 60 * 60 * 1000;
 
+// Lets a test deployment be set outside the store's code. A real store needs none but the first.
+function fromEnvironment() {
+  const env = typeof process === "undefined" ? {} : process.env;
+  return {
+    baseUrl: env.SETTLE_BASE_URL,
+    rpcUrl: env.SETTLE_RPC_URL,
+    registryAddress: env.SETTLE_REGISTRY_ADDRESS as Address | undefined,
+    transferAddress: env.SETTLE_TRANSFER_ADDRESS as Address | undefined,
+  };
+}
+
 // What every part of the SDK shares: the account, the chain and the connection to Settle.
 export class Client {
   readonly baseUrl: string;
@@ -129,14 +140,19 @@ export class Client {
       throw new SettleError("server_only");
     }
     this.account = toAccount(options);
-    this.baseUrl = (options.baseUrl ?? DEFAULTS.baseUrl).replace(/\/+$/, "");
+    const env = fromEnvironment();
+    this.baseUrl = (options.baseUrl ?? env.baseUrl ?? DEFAULTS.baseUrl).replace(/\/+$/, "");
     if (!this.baseUrl) throw new SettleError("base_url_required");
     this.businessName = options.businessName;
     this.chainId = options.chainId ?? DEFAULTS.chainId;
-    this.registryAddress = options.registryAddress ?? DEFAULTS.registryAddress;
-    this.transferAddress = options.transferAddress ?? DEFAULTS.transferAddress;
+    this.registryAddress =
+      options.registryAddress ?? env.registryAddress ?? DEFAULTS.registryAddress;
+    this.transferAddress =
+      options.transferAddress ?? env.transferAddress ?? DEFAULTS.transferAddress;
     this.usdtAddress = options.usdtAddress ?? DEFAULTS.usdtAddress;
-    this.chain = createPublicClient({ transport: http(options.rpcUrl ?? DEFAULTS.rpcUrl) });
+    this.chain = createPublicClient({
+      transport: http(options.rpcUrl ?? env.rpcUrl ?? DEFAULTS.rpcUrl),
+    });
   }
 
   // What Settle's relayer charges right now. Fees only repay gas.

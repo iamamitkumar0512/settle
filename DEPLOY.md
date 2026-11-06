@@ -10,7 +10,7 @@ yet, so treat the first deploy as a test.
 | Root Directory | `apps/web` |
 | Framework preset | Next.js |
 | Build and install commands | Leave the defaults |
-| Include files outside the Root Directory | On. The app imports `packages/sdk`, which must be built first. |
+| Include files outside the Root Directory | On. The repo is a workspace. |
 | Node.js | 20 or newer |
 
 The repo is a pnpm workspace, so dependencies install from the repo root.
@@ -29,7 +29,7 @@ Use the same values as your local `apps/web/.env`.
 | `RPC_ENDPOINT` | Recommended | Server RPC for the relayer. Without it the app uses the public RPC. |
 | `NEXT_PUBLIC_RPC_URL` | Optional | Browser RPC. Defaults to the public RPC. Anything here is visible to visitors. |
 | `SWARM_BEE_URL`, `SWARM_BATCH_ID` | Optional | PDF invoices. The upload field is hidden without both. |
-| `SHOP_MERCHANT_PK` | Optional | The demo shop's wallet. `/shop` can't take orders without it. |
+| `NEXT_PUBLIC_DEMO_STORE_URL` | Optional | The demo store's address. The landing page links to it. |
 
 | `CRON_SECRET` | Recommended | Protects the daily jobs. Vercel Cron sends it by itself. |
 | `RESEND_API_KEY` | Optional | Automatic email reminders. Without it none are sent, and nothing else changes. |
@@ -53,6 +53,24 @@ Optional tuning, with defaults: `MIN_INVOICE_USDT` (1), `RELAYER_MIN_WBT` (0.005
 3. Open `https://<your domain>/api/relay/quote`. `available` should be `true`.
 4. Create an invoice, pay it from a second browser profile, then refund part of it.
 5. Put the deployed URL in [`README.md`](README.md) and [`arkiv/reach.md`](arkiv/reach.md).
+
+## 4. The demo store
+
+`apps/shop` is a separate website, so it is a second Vercel project on the same repo.
+
+1. Log in to the Settle app with the account the store is paid into. An account made for this is
+   best. Open Developers and copy its keys.
+2. Create the project with Root Directory `apps/shop` and leave the commands as they are.
+3. Set `SETTLE_KEY_ID`, `SETTLE_KEY_SECRET` and `SETTLE_BASE_URL`. The last is the Settle app's
+   address, and it is needed at build time too, because the store loads `checkout.js` from there.
+4. Put the store's address in the app's `NEXT_PUBLIC_DEMO_STORE_URL` and redeploy the app.
+
+## 5. Publishing the SDK
+
+1. Set `baseUrl` in `DEFAULTS` in `packages/sdk/src/config.ts` to the deployed app.
+2. Run `npm publish` in `packages/sdk`.
+3. In `apps/shop/package.json`, replace `workspace:*` with the published version, so the store
+   installs it from npm like any other website. `next build` is then enough as its build command.
 
 ## Things to know
 

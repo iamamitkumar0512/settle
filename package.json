@@ -3,14 +3,16 @@
   "private": true,
   "version": "0.1.0",
   "license": "MIT",
-  "description": "Stablecoin invoicing on Whitechain: invoices, pay links, gasless payments and refunds in USDT.",
+  "description": "The payment gateway for USDT on Whitechain: an app for invoices and subscriptions, and an SDK any website adds to accept payment.",
   "engines": {
     "node": ">=20"
   },
   "packageManager": "pnpm@9.15.9",
   "scripts": {
     "dev": "pnpm --filter @settle/web dev",
-    "build": "pnpm --filter settle-pay build && pnpm --filter @settle/web build",
+    "dev:store": "pnpm --filter settle-pay build && pnpm --filter chai-point dev",
+    "build": "pnpm --filter @settle/web build",
+    "build:store": "pnpm --filter chai-point build",
     "test:contracts": "cd contracts && forge test -vv"
   },
   "pnpm": {

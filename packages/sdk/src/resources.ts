@@ -105,6 +105,8 @@ export type Payment = {
   description: string;
   payer: string;
   paidAt: string;
+  /** Your customer's receipt on Settle, with the proof on Whitechain and any refunds. */
+  receiptUrl: string;
 };
 
 type Row = readonly [Address, Address, bigint, bigint, bigint, bigint, number, unknown, bigint];
@@ -441,6 +443,7 @@ export class Payments {
       description: saved?.memo ?? "",
       payer,
       paidAt: order.paidAt as string,
+      receiptUrl: `${client.baseUrl}/pay/${orderId}/receipt`,
     };
   }
 }

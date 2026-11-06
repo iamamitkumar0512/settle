@@ -1,0 +1,267 @@
+:root {
+  --paper: #f7f1e6;
+  --card: #fffaf1;
+  --ink: #2a1c14;
+  --muted: #6d5a4c;
+  --line: #e3d6c2;
+  --accent: #8c3b24;
+  --accent-ink: #fffaf1;
+  --code: #2a1c14;
+  --code-ink: #f3e7d3;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  --sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px/24px var(--sans);
+}
+
+main {
+  flex: 1;
+  width: 100%;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+.masthead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 16px;
+  width: 100%;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 24px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.wordmark {
+  color: var(--ink);
+  font: italic 600 26px/32px var(--serif);
+  text-decoration: none;
+}
+
+.tagline {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.hero {
+  padding: 56px 0 40px;
+}
+
+.hero h1 {
+  max-width: 14em;
+  margin: 0 0 12px;
+  font: 500 clamp(36px, 7vw, 56px) / 1.08 var(--serif);
+  letter-spacing: -0.01em;
+}
+
+.hero p {
+  max-width: 34em;
+  margin: 0;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 28px;
+}
+
+.products {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 20px;
+}
+
+.product {
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--card);
+}
+
+.swatch {
+  display: flex;
+  align-items: flex-end;
+  height: 150px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border-radius: 3px;
+  color: rgb(255 250 241 / 55%);
+  font: italic 500 72px/1 var(--serif);
+}
+
+.product h2 {
+  margin: 0 0 4px;
+  font: 500 22px/28px var(--serif);
+}
+
+.product p {
+  flex: 1;
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.price-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.price {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.buy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 22px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font: 600 15px/20px var(--sans);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.buy:hover {
+  background: #74301d;
+}
+
+.problem {
+  flex-basis: 100%;
+  margin: 4px 0 0;
+  color: var(--accent);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.integration {
+  padding: 72px 0 24px;
+}
+
+.integration h2 {
+  margin: 0 0 8px;
+  font: 500 30px/36px var(--serif);
+}
+
+.integration > p {
+  max-width: 42em;
+  margin: 0 0 24px;
+  color: var(--muted);
+}
+
+.integration p code {
+  color: var(--ink);
+  font: 600 14px ui-monospace, Menlo, monospace;
+}
+
+figure {
+  margin: 0 0 16px;
+}
+
+figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0 16px;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+figcaption code {
+  color: var(--muted);
+  font: 13px ui-monospace, Menlo, monospace;
+}
+
+pre {
+  margin: 0;
+  padding: 14px 16px;
+  overflow-x: auto;
+  border-radius: 4px;
+  background: var(--code);
+  color: var(--code-ink);
+  font: 13px/20px ui-monospace, Menlo, monospace;
+}
+
+.confirmation {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 560px;
+  padding-top: 72px;
+  padding-bottom: 48px;
+}
+
+.confirmation h1 {
+  margin: 0;
+  font: 500 40px/46px var(--serif);
+}
+
+.confirmation p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.confirmation .eyebrow {
+  color: #54683a;
+  font-weight: 600;
+}
+
+.confirmation dl {
+  width: 100%;
+  margin: 12px 0;
+}
+
+.confirmation dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.confirmation dt {
+  color: var(--muted);
+}
+
+.confirmation dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.quiet {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.colophon {
+  padding: 32px 16px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}

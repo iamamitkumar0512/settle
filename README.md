@@ -9,7 +9,7 @@ lets the customer pay without holding WBT for gas.
 > **Status:** built for ETHGlobal Mumbai 2026. Both contracts are live and verified on Whitechain
 > Sepolia, and invoices have been created, paid and refunded there without the customer or the
 > merchant holding gas. Built: email or wallet login, the merchant dashboard, pay page, receipts,
-> refunds, CSV export, the relayer, Arkiv records, PDF invoices on Swarm, an SDK and a demo shop.
+> refunds, CSV export, the relayer, Arkiv records, PDF invoices on Swarm, an SDK and a demo store.
 > Subscriptions are built too: plans, a subscribe page, collection of due payments and cancel.
 > Reminders are built: in the app for the customer, a Remind button for the merchant and a calendar
 > file, with automatic email as an extra that needs an email key. See
@@ -169,7 +169,10 @@ deployment, add its address: `0x0862eb825530db019ed13dbb1a1ef0c6567ba25e`.
 
 The query filters on the writer wallet, because anyone can create entities with the same schema name.
 
-## SDK and demo shop
+## SDK and demo store
+
+The Settle app is the product: every feature lives there. The SDK is the piece any website adds to
+accept payment, and those payments land in the same app.
 
 A store takes USDT through Settle the way it would take cards through a payment gateway. The
 server creates an order, [`checkout.js`](apps/web/public/checkout.js) opens Settle Checkout over the
@@ -192,9 +195,11 @@ const payment = await settle.payments.verify(response);
 
 [`settle-pay`](packages/sdk) also covers refunds, payment links and withdrawals. Everything it makes
 shows in the Settle dashboard for the same account, because both read the same contract. A business
-with no website can do all of this from the dashboard instead.
+with no website can do all of this from the dashboard instead. Keys are on the app's Developers
+page.
 
-The demo shop at `/shop` is built only on the SDK.
+[`apps/shop`](apps/shop) is Chai Point, a separate store that shows this working. It has its own
+site and its own server, and all of its Settle code is 22 lines, which it prints on its own page.
 
 ## PDF invoices on Swarm
 
@@ -212,7 +217,8 @@ contracts/
   src/IUSDT.sol              the USDT functions Settle uses
   test/                      fork tests against the real USDT
   script/                    deployment, Whitechain Sepolia only
-apps/web/                    Next.js dashboard, pay pages, API routes and the demo shop
+apps/web/                    the Settle app: dashboard, pay pages, API routes, checkout.js
+apps/shop/                   Chai Point, a separate demo store built on the SDK
 packages/sdk/                settle-pay, the SDK a store installs to take payments
 arkiv/                       Arkiv schema, feedback and track notes
 ```
@@ -234,7 +240,14 @@ pnpm install
 pnpm dev
 ```
 
-To deploy it, see [`DEPLOY.md`](DEPLOY.md).
+To run the demo store beside it, copy `apps/shop/.env.example` to `apps/shop/.env` and fill in the
+keys from the app's Developers page. It runs on port 3100:
+
+```bash
+pnpm dev:store
+```
+
+To deploy both, see [`DEPLOY.md`](DEPLOY.md).
 
 ## Current limitations
 
@@ -253,8 +266,10 @@ To deploy it, see [`DEPLOY.md`](DEPLOY.md).
   assume a single running copy of the app.
 - Email login has been used on the live chain less than wallet login. A wallet customer sees one
   signature prompt; an email customer sees none.
-- The SDK needs a wallet whose key the merchant holds. A merchant who signed up by email can't use
-  it yet.
+- An email merchant reveals their Key Secret through the login provider's window. That path has not
+  been run end to end yet. The SDK is not on npm until the app has its deployed address.
+- A store's order is created on-chain when checkout starts, so an abandoned cart costs the relayer
+  gas. It is capped per merchant per day.
 - Encrypted customer details are stored on public Arkiv. This uses sample data on testnet and should
   move off Arkiv before real customers use it. See [`arkiv/why-arkiv.md`](arkiv/why-arkiv.md).
 - Arkiv records last about 182 days, and nothing renews them yet.

@@ -219,11 +219,6 @@ function ReportToStore({
 function PaidCard({ invoice, payment }: { invoice: Invoice; payment?: Hash }) {
   const opener = useStoreWindow();
 
-  // A shop that sent the customer here can ask for a way back. Only a path on this site is
-  // accepted, so a pay link can't be used to send anyone somewhere else.
-  const requested = useSearchParams().get("return");
-  const returnPath = requested && /^\/(?!\/)[\w\-./?=&%]*$/.test(requested) ? requested : null;
-
   // A store that created this invoice as an order signed where its customer goes next. The
   // address is part of what the merchant signed, so nobody else can change it.
   const { data: details } = useInvoiceDetails(invoice.id);
@@ -273,14 +268,9 @@ function PaidCard({ invoice, payment }: { invoice: Invoice; payment?: Hash }) {
               </a>
             </>
           )}
-          {returnPath && !store && (
-            <Link href={returnPath} className="btn btn-primary btn-wide">
-              Back to the shop
-            </Link>
-          )}
           <Link
             href={`/pay/${invoice.id}/receipt`}
-            className={`btn btn-wide ${returnPath || store ? "" : "btn-primary"}`}
+            className={`btn btn-wide ${store ? "" : "btn-primary"}`}
           >
             View receipt
           </Link>

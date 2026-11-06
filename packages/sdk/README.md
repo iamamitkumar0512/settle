@@ -13,9 +13,8 @@ fee repays the gas, and it is the same whatever the order's amount.
 npm install settle-pay
 ```
 
-Your Key ID is your Settle account's address. Your Key Secret is that account's signing key. It
-can move your money, like a card gateway's secret key, so keep it on your server and use one
-Settle account per store.
+Your keys are on the Developers page of your Settle account. The Key Secret can move your money,
+like a card gateway's secret key, so keep it on your server and use one Settle account per store.
 
 ## Take a payment
 
@@ -28,7 +27,7 @@ const settle = new Settle({
   keyId: process.env.SETTLE_KEY_ID,
   keySecret: process.env.SETTLE_KEY_SECRET,
   businessName: "Chai Point",
-  baseUrl: "https://<your Settle>",
+  baseUrl: "https://<your Settle>", // or set SETTLE_BASE_URL
 });
 
 app.post("/orders", async (req, res) => {
@@ -90,6 +89,9 @@ app.post("/verify", async (req, res) => {
 `verify` reads Whitechain, not Settle. It throws unless the payment exists, paid that order, and the
 order is yours. Never trust the browser's word on its own. Also check that the order is the one
 this customer is buying, so a paid cheap order can't be reused for a dear one.
+
+The result includes `receiptUrl`, your customer's receipt on Settle. It shows the proof on Whitechain
+and any refunds.
 
 ## Everything you can call
 
@@ -157,3 +159,5 @@ Node 20 or later. The SDK refuses to run in a browser, so your secret can't end 
 ```bash
 SETTLE_URL=https://<your Settle> SETTLE_KEY_ID=0x... SETTLE_KEY_SECRET=... pnpm --filter settle-pay example
 ```
+
+[`apps/shop`](../../apps/shop) is a complete store built on this package, in 22 lines of Settle code.

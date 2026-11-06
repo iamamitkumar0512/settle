@@ -27,9 +27,11 @@ export default function Home() {
       <header className="mx-auto flex h-[76px] w-full max-w-[1240px] items-center justify-between px-4 md:px-8">
         <Logo />
         <nav aria-label="Main" className="flex items-center gap-2">
-          <Link href="/shop" className="btn">
-            Demo shop
-          </Link>
+          {process.env.NEXT_PUBLIC_DEMO_STORE_URL && (
+            <a href={process.env.NEXT_PUBLIC_DEMO_STORE_URL} className="btn">
+              Demo store
+            </a>
+          )}
           <Link href="/pay" className="btn">
             My invoices
           </Link>
