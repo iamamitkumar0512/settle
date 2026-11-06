@@ -4,7 +4,8 @@ Settle is the payment gateway for USDT on Whitechain. A store adds it to its web
 would add a card gateway, and anyone else can create an invoice or a subscription plan in the app.
 Either way the customer pays with an email address, and needs no wallet and no gas.
 
-**Live app:** [ADD DEPLOYED URL] · **Demo video:** [ADD VIDEO LINK]
+**Live app:** <https://settle-usdt.vercel.app> · **Demo store:** <https://chai-point-store.vercel.app> ·
+**Demo video:** [ADD VIDEO LINK]
 
 > **Status:** built for ETHGlobal Mumbai 2026. All three contracts are live and verified on
 > Whitechain Sepolia, and invoices have been created, paid and refunded there without the customer
@@ -30,7 +31,7 @@ To add Settle to a website of your own, the app's Docs page has the steps.
 
 | Track asks for | Where it is |
 |---|---|
-| **Operate:** a drop-in piece a separate demo app adds in about 20 lines | [`settle-pay`](packages/sdk) and [`checkout.js`](apps/web/public/checkout.js). [`apps/shop`](apps/shop) is a separate store with 22 lines of Settle code, printed on its own page |
+| **Operate:** a drop-in piece a separate demo app adds in about 20 lines | [`@akhr2405/settle-pay`](packages/sdk) and [`checkout.js`](apps/web/public/checkout.js). [`apps/shop`](apps/shop) is a separate store with 22 lines of Settle code, printed on its own page |
 | **Operate:** both views, merchant and paying customer | The dashboard and the pay page, plus the store and Settle Checkout |
 | **Operate:** past the first payment | Refunds in part or in full with a receipt the customer can check, subscriptions that renew and cancel, reminders, a CSV export, signed webhooks |
 | **Scale:** a payer flow with no crypto steps | Email login, one button to pay, no wallet, no gas, no network to choose |
@@ -83,11 +84,16 @@ its own relayer.
 | Invoice created without gas (relayed `createFor`) | [`0x9cfc6f6d…e3c416cc`](https://explorer.testnet.whitechain.io/tx/0x9cfc6f6d54b3dbfdc06ffea1b91f6e7639f8c3df856e2c1828d33e15e3c416cc) |
 | Gasless USDT payment (relayed `payWithAuthorization`, 1 USDT) | [`0x8c7dfc4c…79e4eeb2`](https://explorer.testnet.whitechain.io/tx/0x8c7dfc4c484dabbb196aea0fa75e8b6dbc214f5d9af850c69200668d79e4eeb2) |
 | Refund without gas (relayed `refundWithAuthorization`, 1 USDT) | [`0x51207a48…cac2e890`](https://explorer.testnet.whitechain.io/tx/0x51207a48fa1c1b107655432da9af654e68d09b5b6758a4a255ddfcf6cac2e890) |
-| Sale to an AI agent over x402 (agent holds 0 WBT, merchant repays the gas in the same transaction) | [ADD AFTER DEPLOY] |
+| Subscription started, first payment taken (relayed `subscribeFor`, 1 USDT) | [`0xad3a9d66…e6b4cfec`](https://explorer.testnet.whitechain.io/tx/0xad3a9d66265884cb5958cd2ebf615914dc4e18035e5a18bd4e08c9aae6b4cfec) |
+| Renewal collected by itself (`charge`, 1 USDT) | [`0x062555b3…6ba4d4a2`](https://explorer.testnet.whitechain.io/tx/0x062555b35375e48219a18300d7285213640f23e6b7ad74fc1eccbbac6ba4d4a2) |
+| Subscription cancelled without gas (relayed `cancelWithSignature`) | [`0x3603ecd6…68a59f71`](https://explorer.testnet.whitechain.io/tx/0x3603ecd651156679f12eb962545ef377ccfe183e9c0760a22331cb4c68a59f71) |
+| Withdrawal without gas (relayed through `GaslessTransfer`, 0.50 USDT) | [`0xbc6b25cc…85969bb7`](https://explorer.testnet.whitechain.io/tx/0xbc6b25cc4bfff0d70079958b5cb13bef507752abd67bc61b6a9ee76e85969bb7) |
+| Sale to an AI agent over x402 (agent holds 0 WBT, merchant repays the gas in the same transaction) | [`0x93bebfb1…adb21a44`](https://explorer.testnet.whitechain.io/tx/0x93bebfb1c6399e8cb0fa81a2fda729760fed7ffe897d89da8c691deeadb21a44) |
+| Store order paid through hosted checkout (Chai Point, on the published `@akhr2405/settle-pay`, 1.25 USDT) | [`0x5b21cefc…f8f3161a`](https://explorer.testnet.whitechain.io/tx/0x5b21cefc2ca09f6a17351bd157469b31aa0afb8d0c73700277fd0466f8f3161a) |
 | Settled USDT invoice (direct `pay`, 1 USDT, on the first version) | [`0x0b714b19…57c55065`](https://explorer.testnet.whitechain.io/tx/0x0b714b19f379aaa8677df1381f663006bf95eab8f6371d3ce25b835957c55065) |
 
-The payer in the gasless payment, `0x0d99…6aB0`, holds 0 WBT. All three relayed transactions were
-sent by the relayer, `0x21dc…836C`.
+The payers hold 0 WBT, and every relayed transaction was sent by the relayer, `0x21dc…836C`. The
+subscription, the withdrawal and the store order ran through the deployed app's own screens.
 
 ## Architecture
 
@@ -100,7 +106,7 @@ sent by the relayer, `0x21dc…836C`.
  └──────────────────────┘            │ details, settings ────┼──▶ Arkiv   │  GaslessTransfer    │
                                      │ encrypted PDFs ───────┼──▶ Swarm   │  USDT               │
  A store's website                   │                       │            └─────────────────────┘
- ┌──────────────────────┐ settle-pay │                       │                       ▲
+ ┌──────────────────────┐ SDK        │                       │                       ▲
  │ its server           │ ─────────▶ │ orders and refunds    │                       │
  │ its page             │ checkout.js│ Settle Checkout       │                       │
  │ its server           │ ◀───────── │ signed webhooks       │                       │
@@ -254,14 +260,15 @@ Each event is built from the transaction on Whitechain, so nothing a caller says
 The store's address and secret are set on the app's Developers page, which also shows each delivery
 and can resend a failed one.
 
-[`settle-pay`](packages/sdk) also covers refunds, payment links and withdrawals. Everything it makes
+[`@akhr2405/settle-pay`](packages/sdk) also covers refunds, payment links and withdrawals. Everything it makes
 shows in the Settle dashboard for the same account, because both read the same contract. A business
 with no website can do all of this from the dashboard instead. Keys are on the app's Developers
 page.
 
 [`apps/shop`](apps/shop) is Chai Point, a separate store that shows this working. It has its own
-site and its own server. It takes a payment in 22 lines of Settle code and gets webhooks in 6 more,
-and it prints those lines on its own page.
+site and its own server, and it installs [`@akhr2405/settle-pay`](https://www.npmjs.com/package/@akhr2405/settle-pay)
+from npm like any other website. It takes a payment in 22 lines of Settle code and gets webhooks in 6
+more, and it prints those lines on its own page.
 
 ## Selling to AI agents
 
@@ -281,7 +288,7 @@ agent that buys from it with nobody watching.
 
 **Any x402 agent works.** The agent side is the unmodified `@x402/fetch` client, and `/verify` and
 `/supported` answer the standard facilitator client. `/settle` needs one extra thing, the merchant's
-signed repayment, which `settle-pay` adds. That is what makes the merchant, not Settle, pay for the
+signed repayment, which `@akhr2405/settle-pay` adds. That is what makes the merchant, not Settle, pay for the
 gas.
 
 **Why it doesn't use `InvoiceRegistry`.** A standard x402 signature is a
@@ -319,7 +326,7 @@ contracts/
 apps/web/                    the Settle app: dashboard, pay pages, API routes, checkout.js
 apps/shop/                   Chai Point, a separate demo store built on the SDK
 apps/agent/                  a cafe's restock agent, and the check for agent payments
-packages/sdk/                settle-pay, the SDK a store installs to take payments
+packages/sdk/                @akhr2405/settle-pay, the SDK a store installs to take payments
 arkiv/                       Arkiv schema, feedback and track notes
 ```
 
@@ -374,13 +381,13 @@ To see the Arkiv side yourself, follow [`TESTING.md`](TESTING.md).
 ## Current limitations
 
 - Testnet only. The contracts have not been audited.
-- Gasless payment has run on the live chain. Gasless create, cancel, refund and transfer are
-  proven in fork tests and in the app against a fork.
+- Gasless payments, refunds, subscriptions, withdrawals and agent sales have all run on the live
+  chain. Most other paths are proven in fork tests.
 - An invoice keeps the fee estimated when it was created, so the relayer can be repaid a little
   more or less than the gas it later spends.
-- Nobody has subscribed on the live chain yet. A wallet customer signs twice to subscribe. With
-  nobody on the app, a due payment waits for the daily job. There is no webhook for a subscription
-  payment yet, and a merchant sees a subscriber by address, not by name.
+- A wallet customer signs twice to subscribe. With nobody on the app, a due payment waits for the
+  daily job. There is no webhook for a subscription payment yet, and a merchant sees a subscriber by
+  address, not by name.
 - Automatic reminder emails need a mail provider's key and are off without one. They have only
   run against a stand-in for that provider. A wallet customer sees the in-app reminder only after
   signing in once, because invoices sent to a wallet are private. Calendar alerts depend on the
@@ -390,7 +397,7 @@ To see the Arkiv side yourself, follow [`TESTING.md`](TESTING.md).
 - Email login has been used on the live chain less than wallet login. A wallet customer sees one
   signature prompt; an email customer sees none.
 - An email merchant reveals their Key Secret through the login provider's window. That path has not
-  been run end to end yet. The SDK is not on npm until the app has its deployed address.
+  been run end to end yet.
 - A store's order is created on-chain when checkout starts, so an abandoned cart costs the relayer
   gas. It is capped per merchant per day.
 - A sale to an agent pays the merchant directly, so it has no refund button. To refund one, the

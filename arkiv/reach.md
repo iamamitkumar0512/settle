@@ -14,7 +14,7 @@ We haven't tested Settle with real merchants yet, so we can't claim demand.
 
 ## Can they try it today?
 
-Live app: [ADD DEPLOYED URL]
+Live app: <https://settle-usdt.vercel.app>
 
 The app runs on Whitechain Sepolia and Arkiv's Rabdi testnet, using test USDT. A merchant logs in
 with an email or a wallet and needs no gas. A new customer adds free test USDT with one button
