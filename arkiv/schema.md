@@ -6,7 +6,7 @@ customer details.
 
 ## Entities
 
-There are three entity types, all defined in
+There are six entity types, all defined in
 [`apps/web/lib/server/arkiv.ts`](../apps/web/lib/server/arkiv.ts).
 
 ### `settle_invoice_v2`: one per invoice
