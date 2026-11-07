@@ -23,4 +23,4 @@ Current limits are in the [README](../README.md#current-limitations).
 
 ## Will you keep building it after Mumbai?
 
-[AMIT TO ANSWER]
+Yes, there are still multiple features that i can add.

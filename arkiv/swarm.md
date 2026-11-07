@@ -115,4 +115,5 @@ The PDF was 105,904 bytes, and Swarm holds 105,932.
 
 ## Video
 
-[ADD timestamp]
+At 3:35 in the demo video, the invoice form shows that PDFs are stored encrypted on Swarm. The Arkiv
+explorer then shows the `settle_invoice_file_v1` record for invoice 6, with its `swarm_reference`.
