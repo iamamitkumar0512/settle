@@ -68,6 +68,6 @@ Step 3 means only the merchant's own signature can cause a write, and every reco
 real on-chain invoice. That limits abuse of a wallet that pays for writes. If the write fails, the
 app can retry it: the server then checks the details against the hash stored in the contract.
 
-Each write costs about 0.00054 test tokens, using a fixed 1,800,000 gas limit because Rabdi estimates
-can run low. Writes are never retried automatically, since an uncertain write could otherwise be
-saved twice.
+An invoice record uses about 580,000 gas, which is about 0.00058 test GLM at 1 gwei. Settle's wallet
+pays this from the faucet, with a fixed 1,800,000 gas limit because Rabdi estimates can run low.
+Writes are never retried automatically, since an uncertain write could otherwise be saved twice.

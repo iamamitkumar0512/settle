@@ -62,18 +62,30 @@ To list the file records:
 ARKIV_ACCESS_KEY=<your key> node apps/web/scripts/arkiv-query.mjs 0x0d71cae59dc97c25dc911a74e44cbda03f6b641c
 ```
 
+## Live
+
+The deployed app has stored one PDF this way, on invoice 6:
+
+- Arkiv entity key: `0xcd6503a61c2e15b1efb99aa0308f412b15d4732e807d881160f303d18a1d6f12`
+- Swarm reference: `93df7c47ace4c66abb8f30f82b9fa3d74db3ce51f00fe8ee718131293f9950dd`
+- Open the encrypted bytes:
+  <https://api.gateway.ethswarm.org/bytes/93df7c47ace4c66abb8f30f82b9fa3d74db3ce51f00fe8ee718131293f9950dd>
+
+The PDF was 105,904 bytes, and Swarm holds 105,932.
+
 ## Postage batch
 
-- **Used in the test:** the public gateway `https://api.gateway.ethswarm.org` with the null stamp
-  (a batch ID of 64 zeros). The gateway pays for storage, and we don't know how long it keeps files.
-- **Our own batch:** none yet, so the test above is the only upload we can stand behind.
+- **What the app uses:** the public gateway `https://api.gateway.ethswarm.org` with the null stamp
+  (a batch ID of 64 zeros), in the test above and on the live app. The gateway pays for storage, and
+  we don't know how long it keeps files.
+- **Our own batch:** none yet.
 
 `SWARM_BEE_URL` and `SWARM_BATCH_ID` set the node and batch. See `apps/web/.env.example`.
 
 ## What got in the way
 
 - Uploads need a postage batch, bought on Gnosis Chain through a funded Bee node. We had neither at
-  the event, so the test used the public gateway.
+  the event, so Settle uses the public gateway.
 - `arkiv-encryption` is sized for small entities, so files use their own encryption. See
   [`friction.md`](friction.md).
 

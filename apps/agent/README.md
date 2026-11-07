@@ -1,6 +1,6 @@
 # Restock agent
 
-A cafe's AI agent that buys from [Chai Point](../shop) by itself. It reads the stockroom and the
+A cafe's AI agent that buys from [Chai Point](../shop) by itself. Gemini reads the stockroom and the
 store's catalog, decides what to reorder, and pays in USDT over x402. Nobody approves anything, and
 its wallet holds no WBT.
 

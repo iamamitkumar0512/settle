@@ -275,7 +275,7 @@ more, and it prints those lines on its own page.
 
 Any store on Settle can sell to AI agents by putting a price on one route. Chai Point does it in
 [7 lines](apps/shop/app/api/agent/buy/route.ts), and [`apps/agent`](apps/agent) is a cafe's restock
-agent that buys from it with nobody watching.
+agent, run by Gemini, that buys from it with nobody watching.
 
 1. The agent calls the store. The SDK answers `402` with the price, in x402's `PAYMENT-REQUIRED`
    header.
@@ -376,14 +376,18 @@ by hand.
 | The x402 facilitator, attacks on the relayer, races and webhooks | 24 |
 | A server killed after paying, an empty relayer, Arkiv failing, a slow log server | 18 |
 | Agent sales on every screen, on desktop and phone | 11 |
+| Reminder emails through Gmail, against a fake mail server | 29 |
+
+On the live sites, the agent check passed all 20, a Gemini agent placed a real order by itself, a
+store order went through hosted checkout, and a reminder sent through Gmail reached its inbox.
 
 To see the Arkiv side yourself, follow [`TESTING.md`](TESTING.md).
 
 ## Current limitations
 
 - Testnet only. The contracts have not been audited.
-- Gasless payments, refunds, subscriptions, withdrawals and agent sales have all run on the live
-  chain. Most other paths are proven in fork tests.
+- Gasless payments, refunds, subscriptions, withdrawals, store orders and agent sales have all run
+  on the live chain. Most other paths are proven in fork tests.
 - An invoice keeps the fee estimated when it was created, so the relayer can be repaid a little
   more or less than the gas it later spends.
 - A wallet customer signs twice to subscribe. With nobody on the app, a due payment waits for the
@@ -392,8 +396,8 @@ To see the Arkiv side yourself, follow [`TESTING.md`](TESTING.md).
 - Reminder emails need a Gmail app password or a mail provider's key and are off without one. The
   Remind button has sent a real one through Gmail, but the daily job has only run against a
   stand-in. A wallet customer sees the in-app reminder only after signing in once, because invoices
-  sent to a wallet are private. Calendar alerts depend on the
-  customer's calendar app; Google Calendar replaces them with its own default alert.
+  sent to a wallet are private. Calendar alerts depend on the customer's calendar app; Google
+  Calendar replaces them with its own default alert.
 - The relayer is one wallet with one send queue, and rate limits are counted in memory. Both
   assume a single running copy of the app.
 - Email login has been used on the live chain less than wallet login. A wallet customer sees one

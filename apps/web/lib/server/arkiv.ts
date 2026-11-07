@@ -28,7 +28,7 @@ import {
   type WebhookDetails,
 } from "./private-details";
 
-// Rabdi gas estimates can run low, so writes carry a fixed allowance well above the 135k measured.
+// Rabdi gas estimates can run low, so writes carry a fixed allowance. An invoice uses about 590k.
 const WRITE_GAS = 1_800_000n;
 const MAX_WRITE_COST_WEI = 2_000_000_000_000_000n;
 const PAGE_SIZE = 100;
