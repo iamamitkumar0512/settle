@@ -103,9 +103,9 @@ nonce is tied to one invoice and one payer.
   merchant's share. Settle adds no margin. Creating, cancelling and refunding are relayed for free.
 - **Where the WBT comes from:** we fund the wallet from the faucet. `/api/relay/health` shows its
   balance, and it stops below 0.005 WBT.
-- **What stops a drain:** every call needs a signature from the wallet it touches, and each one is
-  simulated first, so a bad signature costs nothing. Free actions have daily caps, and a merchant
-  who has never been paid can keep 5 unpaid invoices.
+- **What stops a drain:** relayed actions are backed by a signature from the wallet they touch, and
+  each one is simulated first, so a bad signature costs nothing. Free actions have daily caps, and a
+  merchant who has never been paid can keep 5 unpaid invoices.
 
 The relayer can't change an amount or redirect money, because the signature fixes both. If it stopped,
 customers with WBT could still pay directly.

@@ -2,9 +2,6 @@
 CLAUDE.md
 SETTLE_BUILD_PLAN.md
 
-# private design reference, not ours to publish
-CeresFarm-V2-handoff/
-
 # secrets — never commit
 .env
 .env.local

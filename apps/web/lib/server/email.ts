@@ -1,7 +1,11 @@
 import "server-only";
 import nodemailer from "nodemailer";
+import { allow, DAY } from "./rate-limit";
 
 type EmailMessage = { to: string; subject: string; text: string; html: string };
+
+// Anyone can create invoices, and all mail leaves through one account, so a day's total is capped.
+const EMAILS_PER_DAY = 50;
 
 // The override points at a stand-in for tests.
 const API_URL = (process.env.RESEND_API_URL ?? "https://api.resend.com").replace(/\/+$/, "");
@@ -73,6 +77,8 @@ async function sendBySmtp(auth: { user: string; pass: string }, message: EmailMe
 }
 
 export async function sendEmail(message: EmailMessage) {
+  if (!allow("emails", EMAILS_PER_DAY, DAY)) throw new EmailError("refused", 429, "daily_limit");
+
   const smtp = smtpLogin();
   if (smtp) return sendBySmtp(smtp, message);
 

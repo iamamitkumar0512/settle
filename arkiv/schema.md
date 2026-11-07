@@ -157,8 +157,8 @@ up with no job of ours, and the Developers page says so.
 
 Two records from the live contract, `0x4c6F09e112CaF53f2922b382DafD8Aa95826628F`:
 
-- Invoice 1: `0x7239a8fe129ad413de36bc4d55e03f72af812bd959ba8089e7e46ff5439ea685`
-- Invoice 2: `0x47294a658a8121971796fe77d11263595d71d08fd9663b867c432d1adcfe48f5`
+- Invoice 10, a store order: `0x70b2eb5ec3ef3c9c38cbc4c2aa17c76fbf245bd25570399911917e9d9bab174c`
+- Invoice 14, billed to an email: `0x3d586e31dfd5943e39de20a0904a23c94be76faebcdc09d746acdd9ec78a8c1f`
 
 To list them all:
 
