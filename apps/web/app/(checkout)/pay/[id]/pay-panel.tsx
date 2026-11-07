@@ -266,7 +266,7 @@ function PaidCard({ invoice, payment }: { invoice: Invoice; payment?: Hash }) {
             View receipt
           </Link>
           <Link href="/pay" className="text-[13px]/[18px] text-accent-text">
-            See all your invoices
+            See all your payments
           </Link>
         </>
       )}
@@ -525,7 +525,7 @@ function DirectPay({ invoice, onChanged, onPaid }: PayProps) {
           {error}{" "}
           {sentHash && (
             <a className="underline" href={explorerTxUrl(sentHash)} target="_blank" rel="noreferrer">
-              View transaction ↗
+              View public proof ↗
             </a>
           )}
         </p>

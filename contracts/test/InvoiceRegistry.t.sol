@@ -368,7 +368,7 @@ contract InvoiceRegistryTest is Test {
     }
 
     /// Must stay byte-identical to the SDK. This literal came from viem's encodeAbiParameters and
-    /// from cast, not from Solidity; keep the same literal in the SDK's test.
+    /// from cast, not from Solidity.
     function test_AuthorizationNonceMatchesTypeScript() public view {
         assertEq(
             registry.authorizationNonce(1, 0x1111111111111111111111111111111111111111),

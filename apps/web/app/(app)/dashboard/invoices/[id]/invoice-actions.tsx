@@ -107,7 +107,7 @@ export function RefundCard({ invoice, onChanged }: ActionProps) {
           target="_blank"
           rel="noreferrer"
         >
-          View on explorer ↗
+          View public proof ↗
         </a>
         <button type="button" className="btn w-full" onClick={() => setRefundHash(undefined)}>
           Done

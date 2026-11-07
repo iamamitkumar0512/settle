@@ -23,7 +23,7 @@ import { allow, DAY } from "./rate-limit";
 export const MIN_INVOICE = parseUnits(process.env.MIN_INVOICE_USDT ?? "1", 6);
 const MAX_FEE_PER_GAS = parseGwei(process.env.RELAYER_MAX_FEE_GWEI ?? "50");
 const MIN_BALANCE = parseEther(process.env.RELAYER_MIN_WBT ?? "0.005");
-// Create, refund and cancel earn no fee, so they share a daily budget.
+// Creating, refunding, cancelling and closing earn no fee, so they share a daily budget.
 const FREE_RELAYS_PER_DAY = Number(process.env.RELAYER_FREE_PER_DAY ?? "500");
 
 export class RelayError extends Error {

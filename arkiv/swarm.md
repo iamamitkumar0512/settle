@@ -1,6 +1,7 @@
 # PDF invoices on Swarm
 
-A merchant can attach a PDF to an invoice. Swarm stores the file. Arkiv stores where it is.
+A merchant can attach a PDF to an invoice. Swarm stores the file. Arkiv stores where it is, in the
+`swarm_reference` field of a `settle_invoice_file_v1` entity.
 
 ## How it works
 
@@ -33,7 +34,30 @@ logs. The server derives the key from the invoice id and a secret, so nothing is
 merchant can copy the same link again later.
 
 The Swarm reference on Arkiv is public, but the bytes behind it are encrypted. The file's size
-still shows.
+still shows. We encrypt the file ourselves and use a plain reference, so the reference on Arkiv
+carries no key.
+
+## Try it yourself
+
+You need an email address for the live app, and a free key from
+<https://hub.arkiv.network/access-keys> for the query. No money is needed.
+
+1. **Upload.** Open <https://settle-usdt.vercel.app>, log in, and create an invoice with a PDF under
+   2 MB attached. The invoice page then shows **Download PDF invoice**.
+2. **Find it on Arkiv.** Copy the newest `swarmReference` under `files`:
+
+   ```bash
+   ARKIV_ACCESS_KEY=<your key> node apps/web/scripts/arkiv-query.mjs
+   ```
+
+3. **Read it from Swarm.** Every PDF starts with `%PDF`, which `xxd` shows as `2550 4446`. You should
+   see random-looking values instead, because Swarm holds only the encrypted file:
+
+   ```bash
+   curl -s https://api.gateway.ethswarm.org/bytes/<swarmReference> | head -c 8 | xxd
+   ```
+
+4. **Open it in the app.** Press **Download PDF invoice**. You get the original PDF back.
 
 ## Why Swarm and Arkiv together
 

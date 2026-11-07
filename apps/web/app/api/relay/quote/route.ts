@@ -5,8 +5,8 @@ import { MIN_INVOICE, RelayError, relayerAccount } from "@/lib/server/relayer";
 import { swarmConfigured } from "@/lib/server/swarm";
 import { topUpLimit } from "@/lib/server/topup";
 
-// What the server can do right now, and what a relayed payment and a relayed transfer cost in
-// gas. A new invoice stores the first of those as its fee.
+// What the server can do right now, and what each relayed action costs in gas. A new invoice
+// stores the payment fee as its own.
 export async function GET() {
   // Read the relayer's settings per request, not once at build time.
   await connection();

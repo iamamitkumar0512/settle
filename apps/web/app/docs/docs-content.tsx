@@ -44,6 +44,8 @@ const CALLS = [
   ["orders.fetch(id)", "One of your orders, read from the chain."],
   ["orders.all()", "All your orders and payment links, newest first."],
   ["orders.cancel(id)", "Cancels an order nobody has paid."],
+  ["orders.waitForPayment(id, options)", "Resolves once it is paid. For scripts."],
+  ["orders.pay(id)", "Pays any open order from this account. For a script or an agent."],
   ["payments.verify(response)", "Confirms a payment against Whitechain."],
   ["refunds.create({ orderId, amount })", "Refunds in part, or in full with no amount."],
   ["paymentLinks.create(link)", "An invoice with a due date and a link to share."],

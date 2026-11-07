@@ -175,7 +175,7 @@ function Withdraw({ address, balance }: { address: Address; balance: bigint }) {
         <p role="status" className="text-[13px]/[18px] text-paid">
           Sent.{" "}
           <a className="underline" href={explorerTxUrl(sent)} target="_blank" rel="noreferrer">
-            View transaction ↗
+            View public proof ↗
           </a>
         </p>
       )}

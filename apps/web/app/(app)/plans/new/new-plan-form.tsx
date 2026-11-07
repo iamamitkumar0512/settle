@@ -85,7 +85,7 @@ function CreatedPanel({
         rel="noreferrer"
         className="text-[13px]/[18px] text-accent-text"
       >
-        View on explorer ↗
+        View public proof ↗
       </a>
       <div className="flex flex-wrap justify-end gap-2">
         <button type="button" className="btn" disabled={saveState === "saving"} onClick={onReset}>

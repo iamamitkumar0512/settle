@@ -309,8 +309,8 @@ contract Subscriptions is ReentrancyGuard, EIP712 {
         if (!plan.active) revert PlanNotOpen();
         if (block.timestamp < sub.nextChargeAt) revert NotDue();
 
-        // An on-time charge keeps the schedule. A late one restarts it from now, so missed
-        // periods are never collected in a burst.
+        // A charge less than a period late keeps the schedule. A later one restarts it from now,
+        // so missed periods are never collected in a burst.
         uint64 next = sub.nextChargeAt + plan.period;
         // forge-lint: disable-next-line(unsafe-typecast)
         if (next <= block.timestamp) next = uint64(block.timestamp) + plan.period;

@@ -41,8 +41,7 @@ function inUsdt(gas: bigint, gasPrice: bigint, price: bigint) {
   return (microUsdt / STEP + 1n) * STEP;
 }
 
-// What a relayed payment, transfer and subscription charge cost the relayer in gas right now,
-// in USDT.
+// What each relayed action that repays its gas costs the relayer right now, in USDT.
 // Settle adds no margin: a fee only repays the gas.
 export async function relayFees() {
   const [price, gasPrice] = await Promise.all([
