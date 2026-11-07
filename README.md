@@ -213,13 +213,6 @@ The agent has its own steps in [`apps/agent`](apps/agent). Whitechain feedback i
 - A webhook is tried 3 times, then resent by hand. Subscription payments don't send one yet.
 - A sale to an agent has no refund button, so the merchant sends the money back from Account.
 
-## How AI was used
-
-Settle was built with an AI coding assistant, working step by step from Amit Kumar's direction. It
-wrote most of the contracts, tests, app code and documents, and ran tests and deployments. Amit chose
-the scope, reviewed each step, tested email login and decided what shipped. At runtime, the restock
-agent uses Gemini to decide what to buy, and it pays with test USDT only.
-
 ## License
 
 [MIT](LICENSE)
